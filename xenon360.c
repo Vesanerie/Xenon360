@@ -8,6 +8,7 @@
 #include <libusb-1.0/libusb.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include "vhid.h"
 
 typedef struct {
     uint16_t vid;
@@ -82,7 +83,7 @@ static void update_key(bool *prev, bool current, CGKeyCode key) {
     }
 }
 
-static void process_packet(const uint8_t *data, int len, state_t *state, bool verbose) {
+static void process_packet(const uint8_t *data, int len, state_t *state, bool verbose, vhid_t *vhid) {
     if (len < 14) return;
     if (data[0] != 0x00) return;
 
@@ -138,16 +139,41 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
         state->ry_last = ry;
     }
 
-    update_key(&state->green,     btn_a,            KEY_A);
-    update_key(&state->red,       btn_b,            KEY_S);
-    update_key(&state->yellow,    btn_y,            KEY_J);
-    update_key(&state->blue,      btn_x,            KEY_K);
-    update_key(&state->orange,    btn_lb,           KEY_L);
-    update_key(&state->strum_up,  dpad_up,          KEY_UP);
-    update_key(&state->strum_down,dpad_down,        KEY_DOWN);
-    update_key(&state->start,     btn_start,        KEY_RETURN);
-    update_key(&state->back,      btn_back,         KEY_ESCAPE);
-    update_key(&state->star_power,tilt,             KEY_SPACE);
+    if (vhid) {
+        vhid_report_t r = {0};
+        if (btn_a)     r.buttons |= VHID_BTN_GREEN;
+        if (btn_b)     r.buttons |= VHID_BTN_RED;
+        if (btn_y)     r.buttons |= VHID_BTN_YELLOW;
+        if (btn_x)     r.buttons |= VHID_BTN_BLUE;
+        if (btn_lb)    r.buttons |= VHID_BTN_ORANGE;
+        if (btn_start) r.buttons |= VHID_BTN_START;
+        if (btn_back)  r.buttons |= VHID_BTN_BACK;
+        r.lx = lx;
+        r.ly = ly;
+        r.rx = rx;
+        r.ry = ry;
+        if (dpad_up && dpad_left)        r.hat = 7;
+        else if (dpad_up && dpad_right)  r.hat = 1;
+        else if (dpad_down && dpad_left) r.hat = 5;
+        else if (dpad_down && dpad_right)r.hat = 3;
+        else if (dpad_up)                r.hat = 0;
+        else if (dpad_right)             r.hat = 2;
+        else if (dpad_down)              r.hat = 4;
+        else if (dpad_left)              r.hat = 6;
+        else                             r.hat = 8;
+        vhid_send(vhid, &r);
+    } else {
+        update_key(&state->green,     btn_a,            KEY_A);
+        update_key(&state->red,       btn_b,            KEY_S);
+        update_key(&state->yellow,    btn_y,            KEY_J);
+        update_key(&state->blue,      btn_x,            KEY_K);
+        update_key(&state->orange,    btn_lb,           KEY_L);
+        update_key(&state->strum_up,  dpad_up,          KEY_UP);
+        update_key(&state->strum_down,dpad_down,        KEY_DOWN);
+        update_key(&state->start,     btn_start,        KEY_RETURN);
+        update_key(&state->back,      btn_back,         KEY_ESCAPE);
+        update_key(&state->star_power,tilt,             KEY_SPACE);
+    }
 
     (void)dpad_left; (void)dpad_right; (void)lx; (void)rx;
 
@@ -224,8 +250,10 @@ static int find_and_open(libusb_context *ctx, libusb_device_handle **out_handle,
 
 int main(int argc, char **argv) {
     bool verbose = false;
+    bool gamepad_mode = false;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) verbose = true;
+        else if (strcmp(argv[i], "-g") == 0 || strcmp(argv[i], "--gamepad") == 0) gamepad_mode = true;
     }
 
     signal(SIGINT, sigint_handler);
@@ -258,21 +286,49 @@ int main(int argc, char **argv) {
     }
 
     printf("Connecte. Ctrl-C pour quitter.\n");
-    printf("Mapping Clone Hero (clavier):\n");
-    printf("  Vert=A  Rouge=S  Jaune=J  Bleu=K  Orange=L\n");
-    printf("  Strum Up/Down = fleches  |  Tilt (star power) = Espace\n");
-    printf("  Start=Entree  Back=Echap\n\n");
 
-    bool trusted = check_accessibility_permission();
-    if (trusted) {
-        printf("OK : permission Accessibilite accordee, injection clavier active.\n");
+    vhid_t *vhid = NULL;
+    if (gamepad_mode) {
+        printf("Mode GAMEPAD (HID virtuel, whammy/tilt analogiques)\n");
+        vhid = vhid_create();
+        if (!vhid) {
+            fprintf(stderr, "\nImpossible de creer le gamepad virtuel.\n");
+            fprintf(stderr, "Sur Apple Silicon il faut desactiver SIP + AMFI :\n");
+            fprintf(stderr, "  1. Reboot en Recovery (Eteindre puis tenir bouton power)\n");
+            fprintf(stderr, "  2. Utilitaires > Terminal > csrutil disable\n");
+            fprintf(stderr, "  3. Reboot normal\n");
+            fprintf(stderr, "  4. sudo nvram boot-args=\"amfi_get_out_of_my_way=1\"\n");
+            fprintf(stderr, "  5. Reboot\n");
+            fprintf(stderr, "Sinon utilise le mode clavier par defaut (sans -g).\n");
+            libusb_release_interface(handle, 0);
+            libusb_close(handle);
+            libusb_exit(ctx);
+            return 1;
+        }
+        printf("Gamepad virtuel cree : \"Xenon360 Virtual Guitar\"\n");
+        printf("Mapping HID :\n");
+        printf("  Boutons 1-5 = frettes  |  Bouton 6=Start, 7=Back\n");
+        printf("  Axe Z = whammy (analogique)  |  Axe Rz = tilt (analogique)\n");
+        printf("  Hat switch = strum (haut/bas)\n");
+        printf("\nDans Clone Hero : Settings > Controls > nouveau device, remap boutons.\n");
     } else {
-        printf("ATTENTION : permission Accessibilite NON accordee.\n");
-        printf("  Les touches ne seront PAS envoyees aux jeux.\n");
-        printf("  macOS a affiche une popup. Va dans :\n");
-        printf("  Reglages > Confidentialite et securite > Accessibilite\n");
-        printf("  Active Terminal (ou l'app depuis laquelle tu lances ce binaire).\n");
-        printf("  Puis relance ce binaire.\n");
+        printf("Mode CLAVIER (Clone Hero default keymap):\n");
+        printf("  Vert=A  Rouge=S  Jaune=J  Bleu=K  Orange=L\n");
+        printf("  Strum Up/Down = fleches  |  Tilt (star power) = Espace\n");
+        printf("  Start=Entree  Back=Echap\n");
+        printf("  (Whammy analogique non supporte en mode clavier, lance avec -g)\n\n");
+
+        bool trusted = check_accessibility_permission();
+        if (trusted) {
+            printf("OK : permission Accessibilite accordee, injection clavier active.\n");
+        } else {
+            printf("ATTENTION : permission Accessibilite NON accordee.\n");
+            printf("  Les touches ne seront PAS envoyees aux jeux.\n");
+            printf("  macOS a affiche une popup. Va dans :\n");
+            printf("  Reglages > Confidentialite et securite > Accessibilite\n");
+            printf("  Active Terminal (ou l'app depuis laquelle tu lances ce binaire).\n");
+            printf("  Puis relance ce binaire.\n");
+        }
     }
     printf("\n");
     if (verbose) printf("Mode verbose actif (affiche chaque changement d'etat).\n\n");
@@ -292,11 +348,12 @@ int main(int argc, char **argv) {
             fprintf(stderr, "\ntransfer error: %s\n", libusb_error_name(r));
             break;
         }
-        process_packet(buf, transferred, &state, verbose);
+        process_packet(buf, transferred, &state, verbose, vhid);
     }
 
-    release_all_keys(&state);
+    if (!gamepad_mode) release_all_keys(&state);
     printf("\nLiberation...\n");
+    if (vhid) vhid_destroy(vhid);
     libusb_release_interface(handle, 0);
     libusb_close(handle);
     libusb_exit(ctx);

@@ -5,8 +5,8 @@ LDFLAGS = -L/opt/homebrew/lib -lusb-1.0 \
 
 all: xenon360
 
-xenon360: xenon360.c
-	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+xenon360: xenon360.c vhid.c vhid.h
+	$(CC) $(CFLAGS) xenon360.c vhid.c -o $@ $(LDFLAGS) -framework IOKit
 
 run: xenon360
 	./xenon360
