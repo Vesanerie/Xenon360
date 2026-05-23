@@ -1,0 +1,5 @@
+xenon360
+*.o
+*.dSYM
+.DS_Store
+build/
