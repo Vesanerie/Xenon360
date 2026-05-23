@@ -48,6 +48,9 @@ typedef struct {
     bool strum_up, strum_down;
     bool start, back;
     bool star_power;
+    uint8_t  b4_last;
+    uint8_t  b5_last;
+    int16_t  lx_last, ly_last, rx_last, ry_last;
 } state_t;
 
 static volatile int keep_running = 1;
@@ -102,16 +105,38 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
     int16_t lx = (int16_t)(data[6]  | (data[7]  << 8));
     int16_t ly = (int16_t)(data[8]  | (data[9]  << 8));
     int16_t rx = (int16_t)(data[10] | (data[11] << 8));
+    int16_t ry = (int16_t)(data[12] | (data[13] << 8));
+    uint8_t b4 = data[4];
+    uint8_t b5 = data[5];
 
-    bool tilt = ly > 16000;
+    bool tilt = ry > 22000;
 
-    bool any_change =
+    bool digital_change =
         (state->green != btn_a) || (state->red != btn_b) ||
         (state->yellow != btn_y) || (state->blue != btn_x) ||
         (state->orange != btn_lb) ||
         (state->strum_up != dpad_up) || (state->strum_down != dpad_down) ||
         (state->start != btn_start) || (state->back != btn_back) ||
         (state->star_power != tilt);
+
+    int analog_threshold_byte = 20;
+    int analog_threshold_i16  = 2000;
+    bool analog_change =
+        (abs((int)b4 - (int)state->b4_last) > analog_threshold_byte) ||
+        (abs((int)b5 - (int)state->b5_last) > analog_threshold_byte) ||
+        (abs((int)lx - (int)state->lx_last) > analog_threshold_i16) ||
+        (abs((int)ly - (int)state->ly_last) > analog_threshold_i16) ||
+        (abs((int)rx - (int)state->rx_last) > analog_threshold_i16) ||
+        (abs((int)ry - (int)state->ry_last) > analog_threshold_i16);
+
+    if (digital_change || analog_change) {
+        state->b4_last = b4;
+        state->b5_last = b5;
+        state->lx_last = lx;
+        state->ly_last = ly;
+        state->rx_last = rx;
+        state->ry_last = ry;
+    }
 
     update_key(&state->green,     btn_a,            KEY_A);
     update_key(&state->red,       btn_b,            KEY_S);
@@ -126,11 +151,12 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
 
     (void)dpad_left; (void)dpad_right; (void)lx; (void)rx;
 
-    if (verbose && any_change) {
-        printf("G%d R%d Y%d B%d O%d | strum:%c%c | start:%d back:%d | tilt:%d (LY=%d) | whammy=%d\n",
+    if (verbose && (digital_change || analog_change)) {
+        printf("G%d R%d Y%d B%d O%d strum:%c%c start:%d back:%d | b4=%3u b5=%3u | LX=%6d LY=%6d RX=%6d RY=%6d\n",
                btn_a, btn_b, btn_y, btn_x, btn_lb,
                dpad_up ? 'U' : '-', dpad_down ? 'D' : '-',
-               btn_start, btn_back, tilt, ly, rx);
+               btn_start, btn_back,
+               b4, b5, lx, ly, rx, ry);
         fflush(stdout);
     }
 }
