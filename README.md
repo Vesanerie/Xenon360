@@ -65,10 +65,63 @@ Au premier lancement macOS demande l'autorisation **Accessibility** pour Termina
 
 Reglages > Confidentialite et securite > Accessibilite > activer Terminal.
 
+## Mode gamepad (v0.2) : whammy et tilt analogiques
+
+Le mode clavier ne peut pas envoyer le whammy en continu (les touches sont binaires). Pour le bending analogique, lance avec `-g` :
+
+```bash
+./xenon360 -g
+```
+
+Mais attention : sur Apple Silicon, creer un HID virtuel necessite de desactiver SIP + AMFI. Procedure :
+
+### 1. csrutil disable (en Recovery)
+
+1. Eteins ton Mac
+2. Maintiens le bouton power jusqu'a voir "Chargement des options de demarrage..."
+3. Options > ton compte > mot de passe
+4. Menu Utilitaires > Terminal
+5. `csrutil disable` puis `y` et mot de passe admin
+6. Reboot
+
+### 2. AMFI disable
+
+Une fois reconnecte en mode normal :
+
+```bash
+sudo nvram boot-args="amfi_get_out_of_my_way=0x1 ipc_control_port_options=0"
+sudo shutdown -r now
+```
+
+### 3. Verification
+
+```bash
+csrutil status        # doit afficher "disabled"
+nvram boot-args       # doit afficher amfi_get_out_of_my_way=0x1
+```
+
+### 4. Lancer en mode gamepad
+
+```bash
+./xenon360 -g
+```
+
+Le device "Xenon360 Virtual Guitar" apparait dans Clone Hero (Settings > Controls).
+
+### Annuler (re-enable SIP)
+
+Reverser tout :
+
+```bash
+sudo nvram -d boot-args
+```
+
+Puis reboot en Recovery et `csrutil enable`.
+
 ## Roadmap
 
 - [x] v0.1 : injection clavier pour guitare wired Clone Hero
-- [ ] v0.2 : Virtual HID gamepad via IOHIDUserDevice (whammy/tilt analogiques)
+- [x] v0.2 : Virtual HID gamepad via IOHIDUserDevice (whammy/tilt analogiques, requiert SIP off)
 - [ ] v0.3 : support wireless receiver Xbox 360 USB (multiplex 4 manettes)
 - [ ] v0.4 : menu bar app Swift + auto-launch
 - [ ] v1.0 : migration DriverKit dext (zero modif systeme, distribuable Mac App Store)
