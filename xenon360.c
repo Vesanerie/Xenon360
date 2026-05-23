@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <libusb-1.0/libusb.h>
 #include <ApplicationServices/ApplicationServices.h>
+#include <CoreFoundation/CoreFoundation.h>
 
 typedef struct {
     uint16_t vid;
@@ -18,7 +19,7 @@ typedef struct {
 static const known_device_t known[] = {
     {0x045E, 0x028E, "Microsoft Xbox 360 Controller (wired)",    false},
     {0x045E, 0x028F, "Microsoft Xbox 360 Wireless Controller",   false},
-    {0x1430, 0x4748, "RedOctane Guitar Hero 6 / Warriors",       true},
+    {0x1430, 0x4748, "RedOctane Guitar Hero X-plorer",           true},
     {0x1430, 0x474B, "RedOctane Guitar Hero (wired)",            true},
     {0x1430, 0x474C, "RedOctane Guitar Hero (wired)",            true},
     {0x1430, 0x4734, "RedOctane Guitar Hero (wired)",            true},
@@ -60,6 +61,17 @@ static void inject_key(CGKeyCode key, bool down) {
     }
 }
 
+static bool check_accessibility_permission(void) {
+    const void *keys[] = { kAXTrustedCheckOptionPrompt };
+    const void *vals[] = { kCFBooleanTrue };
+    CFDictionaryRef opts = CFDictionaryCreate(NULL, keys, vals, 1,
+                                              &kCFTypeDictionaryKeyCallBacks,
+                                              &kCFTypeDictionaryValueCallBacks);
+    bool trusted = AXIsProcessTrustedWithOptions(opts);
+    CFRelease(opts);
+    return trusted;
+}
+
 static void update_key(bool *prev, bool current, CGKeyCode key) {
     if (current != *prev) {
         inject_key(key, current);
@@ -93,6 +105,14 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
 
     bool tilt = ly > 16000;
 
+    bool any_change =
+        (state->green != btn_a) || (state->red != btn_b) ||
+        (state->yellow != btn_y) || (state->blue != btn_x) ||
+        (state->orange != btn_lb) ||
+        (state->strum_up != dpad_up) || (state->strum_down != dpad_down) ||
+        (state->start != btn_start) || (state->back != btn_back) ||
+        (state->star_power != tilt);
+
     update_key(&state->green,     btn_a,            KEY_A);
     update_key(&state->red,       btn_b,            KEY_S);
     update_key(&state->yellow,    btn_y,            KEY_J);
@@ -106,11 +126,11 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
 
     (void)dpad_left; (void)dpad_right; (void)lx; (void)rx;
 
-    if (verbose) {
-        printf("\rG%d R%d Y%d B%d O%d | strum:%c%c | start:%d back:%d | LY:%6d (tilt:%d) | RX(whammy):%6d   ",
+    if (verbose && any_change) {
+        printf("G%d R%d Y%d B%d O%d | strum:%c%c | start:%d back:%d | tilt:%d (LY=%d) | whammy=%d\n",
                btn_a, btn_b, btn_y, btn_x, btn_lb,
                dpad_up ? 'U' : '-', dpad_down ? 'D' : '-',
-               btn_start, btn_back, ly, tilt, rx);
+               btn_start, btn_back, tilt, ly, rx);
         fflush(stdout);
     }
 }
@@ -217,7 +237,19 @@ int main(int argc, char **argv) {
     printf("  Strum Up/Down = fleches  |  Tilt (star power) = Espace\n");
     printf("  Start=Entree  Back=Echap\n\n");
 
-    if (verbose) printf("Mode verbose actif.\n\n");
+    bool trusted = check_accessibility_permission();
+    if (trusted) {
+        printf("OK : permission Accessibilite accordee, injection clavier active.\n");
+    } else {
+        printf("ATTENTION : permission Accessibilite NON accordee.\n");
+        printf("  Les touches ne seront PAS envoyees aux jeux.\n");
+        printf("  macOS a affiche une popup. Va dans :\n");
+        printf("  Reglages > Confidentialite et securite > Accessibilite\n");
+        printf("  Active Terminal (ou l'app depuis laquelle tu lances ce binaire).\n");
+        printf("  Puis relance ce binaire.\n");
+    }
+    printf("\n");
+    if (verbose) printf("Mode verbose actif (affiche chaque changement d'etat).\n\n");
 
     state_t state = {0};
     uint8_t buf[64];
