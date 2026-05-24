@@ -3,10 +3,13 @@
 @interface XenonAppDelegate : NSObject <NSApplicationDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenuItem   *statusLabel;
+@property (nonatomic, strong) NSMenuItem   *warningLabel;
 @property (nonatomic, strong) NSMenuItem   *modeLabel;
 @property (nonatomic, strong) NSTask       *cliTask;
 @property (nonatomic, strong) NSMutableString *lineBuffer;
+@property (nonatomic, copy)   NSString    *deviceName;
 @property (nonatomic) BOOL gamepadMode;
+@property (nonatomic) BOOL accessibilityWarning;
 @end
 
 @implementation XenonAppDelegate
@@ -45,6 +48,12 @@
                                                   action:nil keyEquivalent:@""];
     [self.statusLabel setEnabled:NO];
     [menu addItem:self.statusLabel];
+
+    self.warningLabel = [[NSMenuItem alloc] initWithTitle:@""
+                                                   action:nil keyEquivalent:@""];
+    [self.warningLabel setEnabled:NO];
+    [self.warningLabel setHidden:YES];
+    [menu addItem:self.warningLabel];
 
     self.modeLabel = [[NSMenuItem alloc] initWithTitle:@"Mode : Clavier"
                                                 action:nil keyEquivalent:@""];
@@ -137,17 +146,38 @@
 
 - (void)parseLine:(NSString *)line {
     if ([line hasPrefix:@"Detecte : "]) {
-        NSString *name = [line substringFromIndex:[@"Detecte : " length]];
-        self.statusLabel.title = [NSString stringWithFormat:@"Connectee : %@", name];
+        self.deviceName = [line substringFromIndex:[@"Detecte : " length]];
     } else if ([line containsString:@"No known device found"] ||
                [line containsString:@"Branche ta guitare"]) {
-        self.statusLabel.title = @"Aucune guitare detectee";
+        self.deviceName = nil;
     } else if ([line containsString:@"Device debranche"]) {
-        self.statusLabel.title = @"Guitare debranchee";
+        self.deviceName = nil;
     } else if ([line containsString:@"ATTENTION : permission Accessibilite NON accordee"]) {
-        self.statusLabel.title = @"⚠ Autorise Accessibilite";
-    } else if ([line containsString:@"OK : permission Accessibilite"]) {
-        // ignore, status set by Detecte line
+        self.accessibilityWarning = YES;
+    } else if ([line containsString:@"OK : permission Accessibilite accordee"]) {
+        self.accessibilityWarning = NO;
+    } else {
+        return;
+    }
+    [self refreshUI];
+}
+
+- (void)refreshUI {
+    if (self.deviceName) {
+        self.statusLabel.title = [NSString stringWithFormat:@"Connectee : %@", self.deviceName];
+    } else {
+        self.statusLabel.title = @"Aucune guitare detectee";
+    }
+    if (self.accessibilityWarning) {
+        self.warningLabel.title = @"⚠ Autorise Xenon360 dans Accessibilite";
+        [self.warningLabel setHidden:NO];
+    } else {
+        [self.warningLabel setHidden:YES];
+    }
+
+    NSImage *icon = [self guitarIcon];
+    if (icon && self.statusItem.button.image) {
+        self.statusItem.button.image = icon;
     }
 }
 
