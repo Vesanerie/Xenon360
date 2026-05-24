@@ -10,16 +10,24 @@ Successeur spirituel de [Tattiebogle 360Controller](https://tattiebogle.net/Proj
 
 Roadmap : virtual HID gamepad (whammy/tilt analogiques), support wireless receiver, support drums, migration DriverKit pour distribution sans modif système.
 
-## Devices supportés (v0.1)
+## Devices supportés (126 entrées, table xpad.c)
 
-- Microsoft Xbox 360 Controller wired (0x045E:0x028E)
-- RedOctane Guitar Hero wired (0x1430:0x4748, 0x474B, 0x474C, 0x4734)
-- Harmonix Rock Band Guitar (0x1BAD:0x0002)
-- Harmonix Rock Band Drums (0x1BAD:0x0003)
-- Ion Drum Rocker (0x1BAD:0x0130)
-- Mad Catz Guitar Hero (0x0738:0x4540)
+Tous les périphériques Xbox 360 wired courants sont reconnus :
 
-Le binaire scanne aussi tous les devices USB vendor-specific et affiche leur VID/PID si rien de connu n'est detecte.
+**Manettes officielles + tiers** : Microsoft, Mad Catz, PDP, Hori, Razer, Logitech (F310/F510/F710), PowerA, Joytech, Pelican, Afterglow, Rock Candy, Snakebyte, GameSir, Nacon, BigBen, Saitek, Thrustmaster GPX, Amazon Game Controller, GPD Win 2, Wooting Legacy.
+
+**Instruments rhythm games** :
+- RedOctane Guitar Hero (X-plorer, World Tour, Warriors of Rock, autres variantes)
+- Harmonix Rock Band Guitar et Drumkit
+- Ion Drum Rocker
+- Mad Catz Wireless Guitar
+- Dancepads (HSM3, Honey Bee)
+
+**Fightsticks et arcade** : Mad Catz SFIV/SE/TE/TES+/TE2/Brawlstick, Hori Real Arcade Pro, Razer Atrox, Razer Onza, MLG Pro Circuit, Mortal Kombat FightStick.
+
+**Volants** : Mad Catz MC2 MicroCON Racing Wheel, Thrustmaster Ferrari 458.
+
+Le binaire scanne aussi tous les devices USB vendor-specific et affiche leur VID/PID si rien de connu n'est détecté (permet d'ajouter facilement de nouveaux modèles).
 
 ## Install
 
