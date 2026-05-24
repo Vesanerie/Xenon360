@@ -259,6 +259,9 @@ int main(int argc, char **argv) {
     signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
 
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+
     libusb_context *ctx;
     if (libusb_init(&ctx) < 0) {
         fprintf(stderr, "libusb_init failed\n");
