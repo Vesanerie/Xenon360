@@ -21,8 +21,6 @@ CHECK_INTERVAL=3
 GAME_PATTERNS=(
     "Clone Hero.app/Contents/MacOS"
     "YARG.app/Contents/MacOS"
-    "Fortnite Festival.app/Contents/MacOS"
-    "Rock Band 4.app/Contents/MacOS"
 )
 
 # Resolve where Xenon360.app actually lives.

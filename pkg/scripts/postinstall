@@ -3,7 +3,10 @@
 # Installs the Clone Hero auto-launch LaunchAgent into the *invoking* user's
 # Library, since the installer is run with sudo but $USER / $HOME are wrong.
 
-set -euo pipefail
+set -uo pipefail
+# Note: not -e because launchctl bootstrap can transiently return "Input/output
+# error" if a previous instance is still draining. We handle each step
+# explicitly and never let a launchctl quirk fail the whole .pkg install.
 
 # Resolve the GUI user (the human who ran the installer), not root.
 GUI_USER="$(stat -f '%Su' /dev/console)"
@@ -38,10 +41,21 @@ sudo -u "$GUI_USER" sed "s|__WATCHER_PATH__|$WATCHER_DST|g" \
     "$PLIST_TEMPLATE" > "$PLIST_DEST"
 chown "$GUI_USER":staff "$PLIST_DEST"
 
-# (Re)load the LaunchAgent in the user's GUI session.
+# (Re)load the LaunchAgent in the user's GUI session. Each step is
+# best-effort: at worst the agent will load at next login from the
+# plist we just wrote.
 launchctl asuser "$GUI_UID" launchctl bootout "gui/$GUI_UID/$LABEL" 2>/dev/null || true
-sleep 1
-launchctl asuser "$GUI_UID" launchctl bootstrap "gui/$GUI_UID" "$PLIST_DEST"
-launchctl asuser "$GUI_UID" launchctl enable  "gui/$GUI_UID/$LABEL"
+sleep 2
+
+# Retry bootstrap up to 3 times because launchctl can return EIO
+# transiently while bootout is still tearing down the previous instance.
+for attempt in 1 2 3; do
+    if launchctl asuser "$GUI_UID" launchctl bootstrap "gui/$GUI_UID" "$PLIST_DEST" 2>/dev/null; then
+        break
+    fi
+    sleep 2
+done
+
+launchctl asuser "$GUI_UID" launchctl enable "gui/$GUI_UID/$LABEL" 2>/dev/null || true
 
 exit 0
