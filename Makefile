@@ -3,10 +3,16 @@ CFLAGS  = -O2 -Wall -Wextra -I/opt/homebrew/include
 LDFLAGS = -L/opt/homebrew/lib -lusb-1.0 \
           -framework ApplicationServices -framework CoreFoundation
 
+INSTALL_DIR = $(HOME)/Library/Application Support/Xenon360
+
 all: xenon360
 
 xenon360: xenon360.c vhid.c vhid.h
 	$(CC) $(CFLAGS) xenon360.c vhid.c -o $@ $(LDFLAGS) -framework IOKit
+	@if [ -d "$(INSTALL_DIR)" ]; then \
+		cp $@ "$(INSTALL_DIR)/$@" && \
+		echo "  -> refreshed installed copy at $(INSTALL_DIR)/$@"; \
+	fi
 
 app: xenon360
 	./build_app.sh
