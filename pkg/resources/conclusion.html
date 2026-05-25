@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, sans-serif; font-size: 13px; color: #1d1d1f; padding: 0 2px; }
+  h2 { font-size: 16px; margin: 12px 0 6px; }
+  code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+  ol { padding-left: 20px; }
+  li { margin: 6px 0; }
+  .important { background: #fff3cd; padding: 10px; border-radius: 6px; margin: 10px 0; }
+</style>
+</head>
+<body>
+
+<h2>Installation terminée</h2>
+
+<p>Le watcher tourne en background et Xenon360.app va se lancer dès que tu ouvres Clone Hero.</p>
+
+<div class="important">
+  <strong>Action requise au premier lancement :</strong>
+  <ol>
+    <li>Branche ta guitare en USB.</li>
+    <li>Ouvre Clone Hero.</li>
+    <li>macOS va afficher une popup demandant la permission <strong>Accessibilité</strong> pour Xenon360.</li>
+    <li>Clique <em>« Ouvrir Réglages Système »</em> et active le toggle pour <strong>Xenon360</strong>.</li>
+    <li>Reviens dans Clone Hero, gratte une frette. C'est bon.</li>
+  </ol>
+</div>
+
+<h2>Désinstaller</h2>
+
+<p>Pour retirer l'auto-launch et tous les fichiers : ouvre Terminal et tape</p>
+<p><code>/Applications/Xenon360.app/Contents/Resources/uninstall.sh</code></p>
+
+<h2>Aide</h2>
+
+<p>Logs en direct : <code>tail -f /tmp/xenon360-watcher.log</code></p>
+<p>Repo et bug tracker : <a href="https://github.com/Vesanerie/Xenon360">github.com/Vesanerie/Xenon360</a></p>
+
+</body>
+</html>

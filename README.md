@@ -33,12 +33,31 @@ The binary also scans all vendor-specific USB devices and displays their VID/PID
 
 ## Install
 
+### Recommended: signed installer
+
+Download `Xenon360.pkg` from the latest release at
+https://github.com/Vesanerie/Xenon360/releases, double-click, follow the wizard.
+The installer:
+
+- Drops `Xenon360.app` into `/Applications`
+- Sets up the Clone Hero auto-launch watcher in `~/Library/LaunchAgents`
+- Tells you what to do for the Accessibility permission on the conclusion screen
+
+Plug in your guitar, open Clone Hero, accept the Accessibility prompt the first
+time. Done.
+
+### From source (devs)
+
 ```bash
 brew install libusb
 git clone https://github.com/Vesanerie/Xenon360.git
 cd Xenon360
-make
+make app         # builds Xenon360.app (ad-hoc signed)
+# Optional: auto-launch with Clone Hero
+cd autolaunch && ./install.sh
 ```
+
+See [RELEASE.md](RELEASE.md) for the signed/notarized release pipeline.
 
 ## Usage
 

@@ -1,7 +1,10 @@
 xenon360
 test_wireless
 Xenon360.app/
+Xenon360.pkg
+xenon360-component.pkg
 app/Xenon360
+pkg/build/
 *.o
 *.dSYM
 .DS_Store

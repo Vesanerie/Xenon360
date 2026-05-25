@@ -1,0 +1,30 @@
+Xenon360 - userspace driver for Xbox 360 USB controllers/guitars on Mac
+
+Copyright (C) 2026 Valentin Mardoukhaev / Vesanerie
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation; either version 2 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program; if not, see https://www.gnu.org/licenses/gpl-2.0.html
+
+Full text of the license is available at the URL above and in the LICENSE file
+of the source repository at https://github.com/Vesanerie/Xenon360
+
+================================================================================
+THIRD-PARTY COMPONENTS
+
+This package bundles libusb (https://libusb.info), licensed under LGPL-2.1.
+Source for the bundled libusb version is available at:
+    https://github.com/libusb/libusb
+
+Per LGPL-2.1, you have the right to relink the program against a modified
+version of libusb. The dynamic library is included in
+Xenon360.app/Contents/Frameworks/libusb-1.0.0.dylib and can be replaced.
+================================================================================

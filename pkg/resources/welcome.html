@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: -apple-system, sans-serif; font-size: 13px; color: #1d1d1f; padding: 0 2px; }
+  h2 { font-size: 16px; margin: 12px 0 6px; }
+  code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+  ul { padding-left: 20px; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<h2>Bienvenue dans Xenon360</h2>
+
+<p>Driver userspace pour utiliser ta guitare Xbox 360 USB (Guitar Hero, Rock Band) sur Mac Apple Silicon avec Clone Hero, YARG et tout jeu qui accepte le clavier.</p>
+
+<h2>Ce que cet installeur va faire</h2>
+
+<ul>
+  <li>Copier <code>Xenon360.app</code> dans <code>/Applications</code></li>
+  <li>Installer un LaunchAgent qui surveille Clone Hero et lance Xenon360 automatiquement à chaque session</li>
+  <li>Stager les fichiers utilitaires dans <code>~/Library/Application Support/Xenon360/</code></li>
+</ul>
+
+<h2>Après l'installation</h2>
+
+<p>macOS te demandera la permission <strong>Accessibilité</strong> pour Xenon360.app la première fois qu'il essaie d'injecter des touches clavier. Accepte dans <em>Réglages Système → Confidentialité et sécurité → Accessibilité</em>.</p>
+
+<p>Branche ta guitare, ouvre Clone Hero, joue. Pas besoin de Terminal, pas de configuration manuelle.</p>
+
+</body>
+</html>
