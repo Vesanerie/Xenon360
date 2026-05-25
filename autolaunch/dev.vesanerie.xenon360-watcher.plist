@@ -17,6 +17,6 @@
     <key>StandardErrorPath</key>
     <string>/tmp/xenon360-watcher.log</string>
     <key>ProcessType</key>
-    <string>Background</string>
+    <string>Interactive</string>
 </dict>
 </plist>

@@ -223,8 +223,13 @@ static void inject_key(CGKeyCode key, bool down) {
 }
 
 static bool check_accessibility_permission(void) {
+    // Prompt only when stdout is a tty (user is watching). Under launchd or
+    // when bundled inside Xenon360.app via NSTask, the prompt would either be
+    // suppressed silently or stack up across restarts; emit a plain warning
+    // line instead and let the launching app surface it.
+    bool prompt = isatty(STDOUT_FILENO);
     const void *keys[] = { kAXTrustedCheckOptionPrompt };
-    const void *vals[] = { kCFBooleanTrue };
+    const void *vals[] = { prompt ? kCFBooleanTrue : kCFBooleanFalse };
     CFDictionaryRef opts = CFDictionaryCreate(NULL, keys, vals, 1,
                                               &kCFTypeDictionaryKeyCallBacks,
                                               &kCFTypeDictionaryValueCallBacks);
@@ -331,8 +336,6 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
         update_key(&state->back,      btn_back,         KEY_ESCAPE);
         update_key(&state->star_power,tilt,             KEY_SPACE);
     }
-
-    (void)dpad_left; (void)dpad_right; (void)lx; (void)rx;
 
     if (verbose && (digital_change || analog_change)) {
         printf("G%d R%d Y%d B%d O%d strum:%c%c start:%d back:%d | b4=%3u b5=%3u | LX=%6d LY=%6d RX=%6d RY=%6d\n",
@@ -446,7 +449,12 @@ static void wireless_send_led(wireless_slot_t *s, uint8_t pattern) {
     uint8_t cmd[12] = {0x00, 0x00, 0x08, (uint8_t)(0x40 | pattern),
                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     int transferred = 0;
-    libusb_interrupt_transfer(s->handle, s->out_ep, cmd, sizeof(cmd), &transferred, 100);
+    int r = libusb_interrupt_transfer(s->handle, s->out_ep, cmd, sizeof(cmd),
+                                      &transferred, 100);
+    if (r < 0 && s->verbose) {
+        fprintf(stderr, "Slot %d : LED send failed (%s)\n",
+                s->slot + 1, libusb_error_name(r));
+    }
 }
 
 static void wireless_handle_packet(wireless_slot_t *s, const uint8_t *data, int len) {
