@@ -146,12 +146,26 @@ Each slot then exposes its own virtual HID device named `Xenon360 Virtual Guitar
 
 **Limitation**: this code path has not been tested against real hardware (the maintainer only has a wired X-plorer). It is based on the `xpad.c` Linux kernel driver protocol. Please open a GitHub issue if you test it, success or failure.
 
+## Auto-launch with Clone Hero
+
+Tired of starting `./xenon360` manually before every session? Install the watcher LaunchAgent:
+
+```bash
+cd autolaunch
+./install.sh
+```
+
+A background daemon polls every 3 seconds for the Clone Hero game process. When detected, it spawns `xenon360` and kills it when the game quits. Logs land in `/tmp/xenon360-watcher.log`. Remove it with `./uninstall.sh`.
+
+After the first auto-launch, macOS will ask for **Accessibility** permission on the `xenon360` binary itself (not just Terminal). Grant it once in Settings > Privacy & Security > Accessibility.
+
 ## Roadmap
 
 - [x] v0.1: keyboard injection for wired Clone Hero guitar
 - [x] v0.2: Virtual HID gamepad via IOHIDUserDevice (analog whammy/tilt, requires SIP off)
 - [x] v0.3: Xbox 360 USB wireless receiver support, 4-slot multiplex (alpha, untested)
-- [ ] v0.4: Swift menu bar app + auto-launch
+- [x] v0.3.1: LaunchAgent auto-launch watcher for Clone Hero
+- [ ] v0.4: Swift menu bar app polish (NSWorkspace event-driven autolaunch instead of polling)
 - [ ] v1.0: DriverKit dext migration (zero system modification, Mac App Store distributable)
 
 ## Architecture
