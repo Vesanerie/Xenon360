@@ -12,6 +12,7 @@ APP_NAME="Xenon360"
 APP_BUNDLE="${APP_NAME}.app"
 CONTENTS="${APP_BUNDLE}/Contents"
 ENTITLEMENTS="$(cd "$(dirname "$0")" && pwd)/xenon360.entitlements"
+ARCHS="-arch arm64 -arch x86_64"
 
 cd "$(dirname "$0")"
 
@@ -21,11 +22,11 @@ if [ "$SIGNING_IDENTITY" != "-" ]; then
     RELEASE_MODE=1
 fi
 
-echo "Build CLI binary..."
+echo "Build CLI binary (universal arm64+x86_64)..."
 make >/dev/null
 
-echo "Build menu bar app..."
-clang -O2 -Wall -fobjc-arc \
+echo "Build menu bar app (universal arm64+x86_64)..."
+clang -O2 -Wall -fobjc-arc $ARCHS \
       -framework Cocoa -framework ApplicationServices \
       app/main.m -o app/${APP_NAME}
 
@@ -33,7 +34,6 @@ echo "Create bundle..."
 rm -rf "${APP_BUNDLE}"
 mkdir -p "${CONTENTS}/MacOS"
 mkdir -p "${CONTENTS}/Resources"
-mkdir -p "${CONTENTS}/Frameworks"
 
 cp app/Info.plist                                  "${CONTENTS}/Info.plist"
 cp app/${APP_NAME}                                 "${CONTENTS}/MacOS/${APP_NAME}"
@@ -46,16 +46,8 @@ cp autolaunch/dev.vesanerie.xenon360-watcher.plist "${CONTENTS}/Resources/dev.ve
 cp autolaunch/uninstall.sh                         "${CONTENTS}/Resources/uninstall.sh"
 chmod +x "${CONTENTS}/Resources/clone_hero_watcher.sh" "${CONTENTS}/Resources/uninstall.sh"
 
-# Bundle libusb so the .app is portable across machines that may not have brew.
-LIBUSB_SRC="/opt/homebrew/lib/libusb-1.0.0.dylib"
-if [ -f "$LIBUSB_SRC" ]; then
-    cp "$LIBUSB_SRC" "${CONTENTS}/Frameworks/libusb-1.0.0.dylib"
-    # Rewrite the load path on both binaries so they pick up the bundled copy.
-    install_name_tool -change "$LIBUSB_SRC" "@executable_path/../Frameworks/libusb-1.0.0.dylib" \
-                      "${CONTENTS}/Resources/xenon360" 2>/dev/null || true
-    install_name_tool -change "@rpath/libusb-1.0.0.dylib" "@executable_path/../Frameworks/libusb-1.0.0.dylib" \
-                      "${CONTENTS}/Resources/xenon360" 2>/dev/null || true
-fi
+# Note: libusb is statically linked into both binaries via libs/libusb-1.0.a
+# (universal arm64+x86_64 archive), no dylib to bundle. Cleaner, smaller.
 
 rm app/${APP_NAME}
 
@@ -69,18 +61,12 @@ fi
 
 # Strip stale signatures first; --deep does not re-sign already-signed Mach-Os.
 for bin in "${CONTENTS}/Resources/xenon360" \
-           "${CONTENTS}/Frameworks/libusb-1.0.0.dylib" \
            "${CONTENTS}/MacOS/${APP_NAME}"; do
     [ -f "$bin" ] && codesign --remove-signature "$bin" 2>/dev/null || true
 done
 
-# Re-sign nested bits with a bundle-scoped identifier so TCC can match
+# Re-sign nested CLI with a bundle-scoped identifier so TCC can match
 # Accessibility grants made on the parent bundle ID.
-[ -f "${CONTENTS}/Frameworks/libusb-1.0.0.dylib" ] && \
-    codesign --force --sign "$SIGNING_IDENTITY" $SIGN_OPTS \
-             --identifier dev.vesanerie.xenon360.libusb \
-             "${CONTENTS}/Frameworks/libusb-1.0.0.dylib"
-
 codesign --force --sign "$SIGNING_IDENTITY" $SIGN_OPTS \
          --identifier dev.vesanerie.xenon360.cli \
          "${CONTENTS}/Resources/xenon360"
@@ -97,6 +83,9 @@ echo
 echo "Verify:"
 codesign -dvvv "${APP_BUNDLE}" 2>&1 | grep -E "Identifier|Signature|TeamIdentifier|Authority" | head -6
 codesign -dvvv "${CONTENTS}/Resources/xenon360" 2>&1 | grep -E "Identifier|Signature" | head -2
+echo "Architectures:"
+lipo -info "${CONTENTS}/MacOS/${APP_NAME}" 2>&1
+lipo -info "${CONTENTS}/Resources/xenon360" 2>&1
 
 if [ "$RELEASE_MODE" = "1" ]; then
     echo

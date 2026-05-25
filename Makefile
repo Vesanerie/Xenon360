@@ -1,14 +1,17 @@
 CC      = clang
-CFLAGS  = -O2 -Wall -Wextra -I/opt/homebrew/include
-LDFLAGS = -L/opt/homebrew/lib -lusb-1.0 \
-          -framework ApplicationServices -framework CoreFoundation
+ARCHS   = -arch arm64 -arch x86_64
+CFLAGS  = -O2 -Wall -Wextra $(ARCHS) -Ilibs
+LDFLAGS = $(ARCHS) libs/libusb-1.0.a \
+          -framework ApplicationServices -framework CoreFoundation \
+          -framework IOKit -framework Security -framework Foundation \
+          -lobjc
 
 INSTALL_DIR = $(HOME)/Library/Application Support/Xenon360
 
 all: xenon360
 
-xenon360: xenon360.c vhid.c vhid.h
-	$(CC) $(CFLAGS) xenon360.c vhid.c -o $@ $(LDFLAGS) -framework IOKit
+xenon360: xenon360.c vhid.c vhid.h libs/libusb-1.0.a
+	$(CC) $(CFLAGS) xenon360.c vhid.c -o $@ $(LDFLAGS)
 	@if [ -d "$(INSTALL_DIR)" ]; then \
 		cp $@ "$(INSTALL_DIR)/$@" && \
 		echo "  -> refreshed installed copy at $(INSTALL_DIR)/$@"; \
@@ -31,8 +34,8 @@ run: xenon360
 verbose: xenon360
 	./xenon360 -v
 
-test: test_wireless.c xenon360.c vhid.c vhid.h
-	$(CC) $(CFLAGS) -Wno-unused-function -DXENON360_NO_MAIN test_wireless.c vhid.c -o test_wireless $(LDFLAGS) -framework IOKit
+test: test_wireless.c xenon360.c vhid.c vhid.h libs/libusb-1.0.a
+	$(CC) $(CFLAGS) -Wno-unused-function -DXENON360_NO_MAIN test_wireless.c vhid.c -o test_wireless $(LDFLAGS)
 	./test_wireless
 
 pkg: app

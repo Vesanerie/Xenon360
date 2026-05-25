@@ -56,7 +56,7 @@ Clone Hero receives the keypress and plays the note
 
 The watcher daemon means you never have to think about Xenon360. Open the game, Xenon360 starts itself. Close the game, Xenon360 quits itself. Battery, USB, everything is clean.
 
-**Games detected for auto-launch**: Clone Hero, YARG, Fortnite Festival, Rock Band 4. For any other game: open `/Applications/Xenon360.app` manually before launching it.
+**Games detected for auto-launch**: Clone Hero, YARG. For any other game: open `/Applications/Xenon360.app` manually before launching it.
 
 ### Default keyboard mapping (Clone Hero compatible)
 
@@ -108,7 +108,7 @@ Check the log: `tail -f /tmp/xenon360-watcher.log`. It should say *"Launched Xen
 **The Accessibility popup didn't show up.**
 That can happen if macOS thinks it already asked. Open *Settings > Privacy & Security > Accessibility*, click the **+** button, navigate to `/Applications/Xenon360.app`, and add it manually. Toggle it ON.
 
-**Game not in the auto-launch list (anything other than Clone Hero / YARG / Fortnite Festival / Rock Band 4).**
+**Game not in the auto-launch list (anything other than Clone Hero / YARG).**
 Open `/Applications/Xenon360.app` manually before launching it. Quit it from the menu bar when done. Or open an issue with the game's name and I'll add it.
 
 ## Advanced

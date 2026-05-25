@@ -11,9 +11,9 @@ notarized so Gatekeeper accepts it without warnings.
 ### Added
 - **Signed PKG installer** (`Xenon360.pkg`). Drops the .app in
   `/Applications`, sets up the auto-launch watcher, ready to use.
-- **Auto-launch watcher** as a LaunchAgent. Detects Clone Hero, YARG,
-  Fortnite Festival, and Rock Band 4 by their process path and
-  spawns/quits Xenon360.app automatically with the game.
+- **Auto-launch watcher** as a LaunchAgent. Detects Clone Hero and
+  YARG by their process path and spawns/quits Xenon360.app
+  automatically with the game.
 - **Wireless receiver support** (alpha, untested on real hardware).
   Detects Microsoft Xbox 360 Wireless Receivers (VID 0x045E + PIDs
   0x0291/0x0719/0x02A1, plus the Mad Catz clone 0x1BAD:0x0719), claims
