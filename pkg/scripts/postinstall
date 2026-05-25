@@ -1,0 +1,47 @@
+#!/bin/bash
+# Runs after the user-domain payload (/Applications/Xenon360.app) is laid down.
+# Installs the Clone Hero auto-launch LaunchAgent into the *invoking* user's
+# Library, since the installer is run with sudo but $USER / $HOME are wrong.
+
+set -euo pipefail
+
+# Resolve the GUI user (the human who ran the installer), not root.
+GUI_USER="$(stat -f '%Su' /dev/console)"
+GUI_UID="$(id -u "$GUI_USER")"
+GUI_HOME="$(eval echo "~$GUI_USER")"
+
+APP_PATH="/Applications/Xenon360.app"
+INSTALL_DIR="$GUI_HOME/Library/Application Support/Xenon360"
+LAUNCH_AGENTS="$GUI_HOME/Library/LaunchAgents"
+LABEL="dev.vesanerie.xenon360-watcher"
+PLIST_DEST="$LAUNCH_AGENTS/$LABEL.plist"
+
+if [ ! -d "$APP_PATH" ]; then
+    echo "ERROR: $APP_PATH missing after install payload." >&2
+    exit 1
+fi
+
+# Stage the watcher script + a copy of the .app inside Application Support so
+# launchd (which has no TCC access to /Applications under some scenarios) can
+# always launch it via AppleEvents.
+sudo -u "$GUI_USER" mkdir -p "$INSTALL_DIR" "$LAUNCH_AGENTS"
+
+WATCHER_SRC="$APP_PATH/Contents/Resources/clone_hero_watcher.sh"
+WATCHER_DST="$INSTALL_DIR/clone_hero_watcher.sh"
+PLIST_TEMPLATE="$APP_PATH/Contents/Resources/dev.vesanerie.xenon360-watcher.plist"
+
+sudo -u "$GUI_USER" cp "$WATCHER_SRC" "$WATCHER_DST"
+sudo -u "$GUI_USER" chmod +x "$WATCHER_DST"
+
+# Render the plist with the absolute watcher path resolved.
+sudo -u "$GUI_USER" sed "s|__WATCHER_PATH__|$WATCHER_DST|g" \
+    "$PLIST_TEMPLATE" > "$PLIST_DEST"
+chown "$GUI_USER":staff "$PLIST_DEST"
+
+# (Re)load the LaunchAgent in the user's GUI session.
+launchctl asuser "$GUI_UID" launchctl bootout "gui/$GUI_UID/$LABEL" 2>/dev/null || true
+sleep 1
+launchctl asuser "$GUI_UID" launchctl bootstrap "gui/$GUI_UID" "$PLIST_DEST"
+launchctl asuser "$GUI_UID" launchctl enable  "gui/$GUI_UID/$LABEL"
+
+exit 0

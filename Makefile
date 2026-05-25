@@ -35,8 +35,14 @@ test: test_wireless.c xenon360.c vhid.c vhid.h
 	$(CC) $(CFLAGS) -Wno-unused-function -DXENON360_NO_MAIN test_wireless.c vhid.c -o test_wireless $(LDFLAGS) -framework IOKit
 	./test_wireless
 
-clean:
-	rm -f xenon360 test_wireless app/Xenon360
-	rm -rf Xenon360.app
+pkg: app
+	./build_pkg.sh
 
-.PHONY: all run verbose clean app run-app test
+release:
+	./release.sh
+
+clean:
+	rm -f xenon360 test_wireless app/Xenon360 Xenon360.pkg xenon360-component.pkg
+	rm -rf Xenon360.app pkg/build
+
+.PHONY: all run verbose clean app run-app test pkg release
