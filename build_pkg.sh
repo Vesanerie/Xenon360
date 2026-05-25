@@ -38,12 +38,23 @@ mkdir -p "${STAGE_DIR}/Applications"
 cp -R "${APP_BUNDLE}" "${STAGE_DIR}/Applications/"
 
 echo "==> pkgbuild component"
+# Generate a component plist that explicitly forbids bundle relocation,
+# otherwise macOS Installer will detect any existing Xenon360.app at any
+# user-accessible path (Downloads, Desktop, dev tree...) and try to
+# update it in place, which fails under TCC and leaves a broken install.
+COMPONENT_PLIST="$(mktemp).plist"
+trap 'rm -f "$COMPONENT_PLIST"; rm -rf "$STAGE_DIR"' EXIT
+
+pkgbuild --analyze --root "${STAGE_DIR}" "${COMPONENT_PLIST}"
+/usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" "${COMPONENT_PLIST}"
+
 pkgbuild \
-    --root      "${STAGE_DIR}" \
-    --identifier "${PKG_ID}" \
-    --version    "${APP_VERSION}" \
+    --root           "${STAGE_DIR}" \
+    --identifier     "${PKG_ID}" \
+    --version        "${APP_VERSION}" \
     --install-location / \
-    --scripts    pkg/scripts \
+    --scripts        pkg/scripts \
+    --component-plist "${COMPONENT_PLIST}" \
     "${COMPONENT_PKG}"
 
 # Step 3: wrap the component package in a productbuild distribution package
