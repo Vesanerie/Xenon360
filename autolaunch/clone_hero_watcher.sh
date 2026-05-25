@@ -14,6 +14,17 @@ set -u
 APP_BUNDLE_ID="dev.vesanerie.xenon360"
 CHECK_INTERVAL=3
 
+# Games that should trigger Xenon360. Add a new line below for each. The
+# pattern matches against the full process command line via `pgrep -f`,
+# so use the .app's executable path to avoid false positives from songs,
+# folders, or shell history that happens to contain the game's name.
+GAME_PATTERNS=(
+    "Clone Hero.app/Contents/MacOS"
+    "YARG.app/Contents/MacOS"
+    "Fortnite Festival.app/Contents/MacOS"
+    "Rock Band 4.app/Contents/MacOS"
+)
+
 # Resolve where Xenon360.app actually lives.
 # PKG installer drops it in /Applications; source-build install.sh stages it
 # in ~/Library/Application Support/Xenon360/. Honor an explicit XENON_APP env
@@ -32,14 +43,15 @@ resolve_app_path() {
 }
 APP_PATH="$(resolve_app_path)"
 
-CLONE_HERO_PATTERN="Clone Hero.app/Contents/MacOS"
-
 ts() { date "+%Y-%m-%d %H:%M:%S"; }
 
-is_clone_hero_running() {
-    # -a anchors to the start of the command name, avoiding false positives
-    # from any other process that might happen to contain the path substring.
-    pgrep -f "$CLONE_HERO_PATTERN" 2>/dev/null | grep -v "^$$\$" >/dev/null
+is_game_running() {
+    for pattern in "${GAME_PATTERNS[@]}"; do
+        if pgrep -f "$pattern" >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 is_xenon_running() {
@@ -79,11 +91,11 @@ cleanup() {
 }
 trap cleanup TERM INT
 
-echo "[$(ts)] Watcher started, polling every ${CHECK_INTERVAL}s for '$CLONE_HERO_PATTERN'"
+echo "[$(ts)] Watcher started, polling every ${CHECK_INTERVAL}s for: ${GAME_PATTERNS[*]}"
 echo "[$(ts)] Will launch: ${APP_PATH:-<not yet resolved>}"
 
 while true; do
-    if is_clone_hero_running; then
+    if is_game_running; then
         if ! is_xenon_running; then
             start_xenon
         fi
