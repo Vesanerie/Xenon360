@@ -155,9 +155,11 @@ cd autolaunch
 ./install.sh
 ```
 
-A background daemon polls every 3 seconds for the Clone Hero game process. When detected, it spawns `xenon360` and kills it when the game quits. Logs land in `/tmp/xenon360-watcher.log`. Remove it with `./uninstall.sh`.
+A background daemon polls every 3 seconds for the Clone Hero game process. When detected, it launches `Xenon360.app` (via AppleScript for proper TCC inheritance) and quits it when the game exits. Logs land in `/tmp/xenon360-watcher.log`. Remove it with `./uninstall.sh`.
 
-After the first auto-launch, macOS will ask for **Accessibility** permission on the `xenon360` binary itself (not just Terminal). Grant it once in Settings > Privacy & Security > Accessibility.
+After the first auto-launch, macOS will ask for **Accessibility** permission on `Xenon360.app` (bundle ID `dev.vesanerie.xenon360`). Grant it once in Settings > Privacy & Security > Accessibility. The bundled CLI inherits the bundle's permission so injection works under launchd.
+
+> Why the .app and not the bare CLI? macOS TCC for Accessibility requires a stable code-signing identity to track permissions across rebuilds. A linker-signed standalone Mach-O gets a fresh ad-hoc identity on every compile, which breaks the grant. The .app bundle ID is stable, and the watcher launches via AppleEvents so the responsible-process attribution falls on the loginwindow session rather than launchd.
 
 ## Roadmap
 
@@ -167,10 +169,6 @@ After the first auto-launch, macOS will ask for **Accessibility** permission on 
 - [x] v0.3.1: LaunchAgent auto-launch watcher for Clone Hero
 - [ ] v0.4: Swift menu bar app polish (NSWorkspace event-driven autolaunch instead of polling)
 - [ ] v1.0: DriverKit dext migration (zero system modification, Mac App Store distributable)
-
-## Architecture
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (TODO).
 
 ## Credits
 

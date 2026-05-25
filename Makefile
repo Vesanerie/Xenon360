@@ -16,6 +16,11 @@ xenon360: xenon360.c vhid.c vhid.h
 
 app: xenon360
 	./build_app.sh
+	@if [ -d "$(INSTALL_DIR)/Xenon360.app" ]; then \
+		rm -rf "$(INSTALL_DIR)/Xenon360.app" && \
+		cp -R Xenon360.app "$(INSTALL_DIR)/" && \
+		echo "  -> refreshed installed Xenon360.app at $(INSTALL_DIR)/"; \
+	fi
 
 run-app: app
 	open Xenon360.app

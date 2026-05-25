@@ -117,11 +117,15 @@
     self.cliTask.terminationHandler = ^(NSTask *t) {
         dispatch_async(dispatch_get_main_queue(), ^{
             __strong typeof(weakSelf) strongSelf = weakSelf;
-            if (!strongSelf) return;
+            // If the user is quitting the app, quit:: nils out terminationHandler
+            // and terminates the task, but the handler may already be in flight.
+            // Guard against re-launching during shutdown.
+            if (!strongSelf || !strongSelf.cliTask) return;
             strongSelf.statusLabel.title = @"Cherche guitare...";
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
                            dispatch_get_main_queue(), ^{
-                [strongSelf launchCLI];
+                __strong typeof(weakSelf) s = weakSelf;
+                if (s && s.cliTask) [s launchCLI];
             });
         });
     };
@@ -193,8 +197,12 @@
 }
 
 - (void)quit:(id)sender {
-    self.cliTask.terminationHandler = nil;
-    if (self.cliTask.isRunning) [self.cliTask terminate];
+    NSTask *t = self.cliTask;
+    self.cliTask = nil;
+    if (t) {
+        t.terminationHandler = nil;
+        if (t.isRunning) [t terminate];
+    }
     [NSApp terminate:nil];
 }
 

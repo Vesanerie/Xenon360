@@ -1,5 +1,7 @@
 xenon360
 test_wireless
+Xenon360.app/
+app/Xenon360
 *.o
 *.dSYM
 .DS_Store
