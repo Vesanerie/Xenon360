@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#import <ApplicationServices/ApplicationServices.h>
 
 @interface XenonAppDelegate : NSObject <NSApplicationDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
@@ -28,9 +29,27 @@
     return icon;
 }
 
+- (BOOL)requestAccessibilityIfNeeded {
+    // AXIsProcessTrustedWithOptions(prompt=true) is what makes macOS show
+    // the system "<App> wants to control your computer" popup. If the app's
+    // bundle ID is already in the TCC database (granted or denied), it just
+    // returns the cached result without re-prompting. So calling this on
+    // every launch is safe: it only annoys the user the very first time.
+    //
+    // We call it from the .app's main process (not the CLI subprocess) so
+    // TCC attributes the request to dev.vesanerie.xenon360, the bundle ID
+    // the user actually sees in Settings.
+    NSDictionary *options = @{(__bridge id)kAXTrustedCheckOptionPrompt: @YES};
+    return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)note {
     self.lineBuffer = [NSMutableString string];
     self.gamepadMode = NO;
+
+    // Prompt for Accessibility before spawning the CLI. The system popup
+    // will appear if this bundle ID has never been granted permission.
+    [self requestAccessibilityIfNeeded];
 
     self.statusItem = [[NSStatusBar systemStatusBar]
                        statusItemWithLength:NSVariableStatusItemLength];

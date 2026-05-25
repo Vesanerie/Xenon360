@@ -25,7 +25,8 @@ echo "Build CLI binary..."
 make >/dev/null
 
 echo "Build menu bar app..."
-clang -O2 -Wall -fobjc-arc -framework Cocoa \
+clang -O2 -Wall -fobjc-arc \
+      -framework Cocoa -framework ApplicationServices \
       app/main.m -o app/${APP_NAME}
 
 echo "Create bundle..."
