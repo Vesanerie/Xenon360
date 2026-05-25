@@ -63,7 +63,7 @@ static void dict_set_int(CFMutableDictionaryRef d, CFStringRef key, int value) {
     CFRelease(n);
 }
 
-vhid_t *vhid_create(void) {
+vhid_t *vhid_create_slot(int slot) {
     CFMutableDictionaryRef props = CFDictionaryCreateMutable(
         NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 
@@ -72,23 +72,28 @@ vhid_t *vhid_create(void) {
     CFRelease(desc);
 
     dict_set_int(props, CFSTR("VendorID"),         0x1209);
-    dict_set_int(props, CFSTR("ProductID"),        0x5860);
+    dict_set_int(props, CFSTR("ProductID"),        0x5860 + slot);
     dict_set_int(props, CFSTR("PrimaryUsagePage"), 0x01);
     dict_set_int(props, CFSTR("PrimaryUsage"),     0x05);
     dict_set_int(props, CFSTR("VersionNumber"),    0x0100);
 
-    CFDictionarySetValue(props, CFSTR("Product"),
-        CFSTR("Xenon360 Virtual Guitar"));
-    CFDictionarySetValue(props, CFSTR("Manufacturer"),
-        CFSTR("Vesanerie / Xenon360"));
-    CFDictionarySetValue(props, CFSTR("SerialNumber"),
-        CFSTR("xenon360-0001"));
+    char product[64];
+    char serial[64];
+    snprintf(product, sizeof(product), "Xenon360 Virtual Guitar Slot %d", slot + 1);
+    snprintf(serial,  sizeof(serial),  "xenon360-%04d", slot + 1);
+    CFStringRef prod_cf = CFStringCreateWithCString(NULL, product, kCFStringEncodingUTF8);
+    CFStringRef ser_cf  = CFStringCreateWithCString(NULL, serial,  kCFStringEncodingUTF8);
+    CFDictionarySetValue(props, CFSTR("Product"),      prod_cf);
+    CFDictionarySetValue(props, CFSTR("Manufacturer"), CFSTR("Vesanerie / Xenon360"));
+    CFDictionarySetValue(props, CFSTR("SerialNumber"), ser_cf);
+    CFRelease(prod_cf);
+    CFRelease(ser_cf);
 
     IOHIDUserDeviceRef dev = IOHIDUserDeviceCreate(kCFAllocatorDefault, props);
     CFRelease(props);
 
     if (!dev) {
-        fprintf(stderr, "vhid: IOHIDUserDeviceCreate a echoue.\n");
+        fprintf(stderr, "vhid: IOHIDUserDeviceCreate a echoue (slot %d).\n", slot + 1);
         fprintf(stderr, "  Sur Apple Silicon il faut probablement :\n");
         fprintf(stderr, "    1. csrutil disable (depuis Recovery, Cmd-R au boot)\n");
         fprintf(stderr, "    2. sudo nvram boot-args=\"amfi_get_out_of_my_way=1\"\n");
@@ -99,6 +104,10 @@ vhid_t *vhid_create(void) {
     vhid_t *v = calloc(1, sizeof(*v));
     v->dev = dev;
     return v;
+}
+
+vhid_t *vhid_create(void) {
+    return vhid_create_slot(0);
 }
 
 void vhid_destroy(vhid_t *v) {

@@ -28,6 +28,7 @@ typedef struct __attribute__((packed)) {
 #define VHID_HAT_NULL     8
 
 vhid_t *vhid_create(void);
+vhid_t *vhid_create_slot(int slot);
 void    vhid_destroy(vhid_t *v);
 int     vhid_send(vhid_t *v, const vhid_report_t *r);
 

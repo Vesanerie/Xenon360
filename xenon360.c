@@ -169,6 +169,27 @@ static const known_device_t known[] = {
     {0,      0,      NULL,                                            false}
 };
 
+typedef struct {
+    uint16_t vid;
+    uint16_t pid;
+    const char *name;
+} wireless_receiver_t;
+
+static const wireless_receiver_t wireless_receivers[] = {
+    {0x045E, 0x0291, "Microsoft Xbox 360 Wireless Receiver"},
+    {0x045E, 0x0719, "Microsoft Xbox 360 Wireless Receiver for Windows"},
+    {0x045E, 0x02A1, "Microsoft Xbox 360 Wireless Receiver (variant)"},
+    {0x1BAD, 0x0719, "Mad Catz Xbox 360 Wireless Receiver clone"},
+    {0,      0,      NULL},
+};
+
+static const wireless_receiver_t *find_wireless_match(uint16_t vid, uint16_t pid) {
+    for (const wireless_receiver_t *w = wireless_receivers; w->vid; w++) {
+        if (vid == w->vid && pid == w->pid) return w;
+    }
+    return NULL;
+}
+
 #define KEY_A      0x00
 #define KEY_S      0x01
 #define KEY_J      0x26
@@ -336,24 +357,46 @@ static void release_all_keys(state_t *state) {
     if (state->star_power) { inject_key(KEY_SPACE,  false); state->star_power = false; }
 }
 
-static int find_and_open(libusb_context *ctx, libusb_device_handle **out_handle,
-                         const known_device_t **out_match) {
+typedef enum {
+    DEV_NONE = 0,
+    DEV_WIRED,
+    DEV_WIRELESS_RECEIVER,
+} dev_type_t;
+
+static dev_type_t find_and_open(libusb_context *ctx,
+                                libusb_device_handle **out_handle,
+                                const known_device_t **out_wired,
+                                const wireless_receiver_t **out_wireless) {
     libusb_device **list;
     ssize_t cnt = libusb_get_device_list(ctx, &list);
-    if (cnt < 0) return -1;
+    if (cnt < 0) return DEV_NONE;
 
     for (ssize_t i = 0; i < cnt; i++) {
         struct libusb_device_descriptor desc;
         if (libusb_get_device_descriptor(list[i], &desc) < 0) continue;
+
+        const wireless_receiver_t *w = find_wireless_match(desc.idVendor, desc.idProduct);
+        if (w) {
+            libusb_device_handle *h = NULL;
+            int r = libusb_open(list[i], &h);
+            if (r == 0) {
+                *out_handle = h;
+                *out_wireless = w;
+                libusb_free_device_list(list, 1);
+                return DEV_WIRELESS_RECEIVER;
+            }
+            continue;
+        }
+
         for (const known_device_t *k = known; k->vid; k++) {
             if (desc.idVendor == k->vid && desc.idProduct == k->pid) {
                 libusb_device_handle *h = NULL;
                 int r = libusb_open(list[i], &h);
                 if (r == 0) {
                     *out_handle = h;
-                    *out_match = k;
+                    *out_wired = k;
                     libusb_free_device_list(list, 1);
-                    return 0;
+                    return DEV_WIRED;
                 }
             }
         }
@@ -381,7 +424,193 @@ static int find_and_open(libusb_context *ctx, libusb_device_handle **out_handle,
         }
     }
     libusb_free_device_list(list, 1);
-    return -1;
+    return DEV_NONE;
+}
+
+typedef struct {
+    int slot;
+    libusb_device_handle *handle;
+    struct libusb_transfer *xfer;
+    uint8_t buf[32];
+    state_t state;
+    bool present;
+    vhid_t *vhid;
+    bool verbose;
+    bool keyboard_mode;
+    uint8_t in_ep;
+    uint8_t out_ep;
+} wireless_slot_t;
+
+static void wireless_send_led(wireless_slot_t *s, uint8_t pattern) {
+    uint8_t cmd[12] = {0x00, 0x00, 0x08, (uint8_t)(0x40 | pattern),
+                       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    int transferred = 0;
+    libusb_interrupt_transfer(s->handle, s->out_ep, cmd, sizeof(cmd), &transferred, 100);
+}
+
+static void wireless_handle_packet(wireless_slot_t *s, const uint8_t *data, int len) {
+    if (len < 2) return;
+
+    if (data[0] & 0x08) {
+        bool now_present = (data[1] & 0x80) != 0;
+        if (now_present != s->present) {
+            s->present = now_present;
+            if (now_present) {
+                printf("Slot %d : manette connectee\n", s->slot + 1);
+                wireless_send_led(s, 0x02 + s->slot);
+            } else {
+                printf("Slot %d : manette deconnectee\n", s->slot + 1);
+                if (s->keyboard_mode) release_all_keys(&s->state);
+            }
+            fflush(stdout);
+        }
+        return;
+    }
+
+    if (data[1] == 0x01 && len >= 18) {
+        if (s->keyboard_mode && s->slot != 0) {
+            if (s->verbose) {
+                printf("Slot %d input (ignore : clavier sur slot 1 uniquement)\n", s->slot + 1);
+                fflush(stdout);
+            }
+            return;
+        }
+        process_packet(data + 4, len - 4, &s->state, s->verbose, s->vhid);
+    }
+}
+
+static void LIBUSB_CALL wireless_cb(struct libusb_transfer *xfer) {
+    wireless_slot_t *s = (wireless_slot_t *)xfer->user_data;
+
+    if (xfer->status == LIBUSB_TRANSFER_COMPLETED) {
+        wireless_handle_packet(s, xfer->buffer, xfer->actual_length);
+    } else if (xfer->status == LIBUSB_TRANSFER_NO_DEVICE) {
+        fprintf(stderr, "\nReceiver debranche.\n");
+        keep_running = 0;
+        return;
+    } else if (xfer->status != LIBUSB_TRANSFER_TIMED_OUT &&
+               xfer->status != LIBUSB_TRANSFER_CANCELLED) {
+        if (s->verbose) {
+            fprintf(stderr, "Slot %d transfer status %d\n", s->slot + 1, xfer->status);
+        }
+    }
+
+    if (xfer->status == LIBUSB_TRANSFER_CANCELLED) return;
+    if (!keep_running) return;
+
+    int r = libusb_submit_transfer(xfer);
+    if (r < 0 && r != LIBUSB_ERROR_NO_DEVICE) {
+        fprintf(stderr, "submit_transfer slot %d echec: %s\n",
+                s->slot + 1, libusb_error_name(r));
+        keep_running = 0;
+    }
+}
+
+static int run_wireless(libusb_context *ctx, libusb_device_handle *handle,
+                        const wireless_receiver_t *match, bool gamepad_mode, bool verbose) {
+    printf("Detecte : %s (VID 0x%04X PID 0x%04X)\n",
+           match->name, match->vid, match->pid);
+
+    static const int interfaces[4] = {0, 2, 4, 6};
+    static const uint8_t in_eps[4] = {0x81, 0x83, 0x85, 0x87};
+    static const uint8_t out_eps[4]= {0x01, 0x03, 0x05, 0x07};
+
+    int claimed[4] = {0};
+    for (int i = 0; i < 4; i++) {
+        int r = libusb_claim_interface(handle, interfaces[i]);
+        if (r < 0) {
+            fprintf(stderr, "claim_interface %d echec : %s\n",
+                    interfaces[i], libusb_error_name(r));
+            fprintf(stderr, "Le receiver est peut-etre deja claim par le driver natif Apple.\n");
+            for (int j = 0; j < i; j++) {
+                if (claimed[j]) libusb_release_interface(handle, interfaces[j]);
+            }
+            return 1;
+        }
+        claimed[i] = 1;
+    }
+
+    vhid_t *vhids[4] = {0};
+    if (gamepad_mode) {
+        for (int i = 0; i < 4; i++) {
+            vhids[i] = vhid_create_slot(i);
+            if (!vhids[i]) {
+                fprintf(stderr, "Slot %d : vhid non cree (SIP/AMFI requis).\n", i + 1);
+            }
+        }
+    } else {
+        if (check_accessibility_permission()) {
+            printf("OK : permission Accessibilite accordee.\n");
+        } else {
+            printf("ATTENTION : permission Accessibilite NON accordee.\n");
+            printf("  Va dans Reglages > Confidentialite > Accessibilite, active Terminal, relance.\n");
+        }
+    }
+
+    wireless_slot_t slots[4] = {0};
+    struct libusb_transfer *xfers[4] = {0};
+    int rc = 0;
+
+    for (int i = 0; i < 4; i++) {
+        slots[i].slot = i;
+        slots[i].handle = handle;
+        slots[i].present = false;
+        slots[i].vhid = vhids[i];
+        slots[i].verbose = verbose;
+        slots[i].keyboard_mode = !gamepad_mode;
+        slots[i].in_ep = in_eps[i];
+        slots[i].out_ep = out_eps[i];
+
+        xfers[i] = libusb_alloc_transfer(0);
+        if (!xfers[i]) {
+            fprintf(stderr, "alloc_transfer echec\n");
+            rc = 1;
+            goto cleanup;
+        }
+        libusb_fill_interrupt_transfer(xfers[i], handle, in_eps[i],
+                                       slots[i].buf, sizeof(slots[i].buf),
+                                       wireless_cb, &slots[i], 0);
+        slots[i].xfer = xfers[i];
+
+        int r = libusb_submit_transfer(xfers[i]);
+        if (r < 0) {
+            fprintf(stderr, "submit_transfer slot %d echec : %s\n",
+                    i + 1, libusb_error_name(r));
+            rc = 1;
+            goto cleanup;
+        }
+    }
+
+    printf("\nMode WIRELESS RECEIVER : 4 slots a l'ecoute.\n");
+    printf("Allume tes manettes (bouton Guide) et attribue chaque slot.\n");
+    if (gamepad_mode) {
+        printf("Gamepad virtuel par slot : 'Xenon360 Virtual Guitar Slot N'\n");
+    } else {
+        printf("Mode CLAVIER : seul le slot 1 injecte au clavier (sinon collision).\n");
+        printf("Pour multi-joueur, utilise --gamepad (necessite SIP/AMFI off).\n");
+    }
+    printf("Ctrl-C pour quitter.\n\n");
+
+    while (keep_running) {
+        struct timeval tv = {0, 100000};
+        libusb_handle_events_timeout(ctx, &tv);
+    }
+
+cleanup:
+    for (int i = 0; i < 4; i++) {
+        if (xfers[i]) libusb_cancel_transfer(xfers[i]);
+    }
+    for (int drain = 0; drain < 10; drain++) {
+        struct timeval tv = {0, 50000};
+        libusb_handle_events_timeout(ctx, &tv);
+    }
+    for (int i = 0; i < 4; i++) {
+        if (xfers[i]) libusb_free_transfer(xfers[i]);
+        if (!gamepad_mode) release_all_keys(&slots[i].state);
+        if (vhids[i]) vhid_destroy(vhids[i]);
+        if (claimed[i]) libusb_release_interface(handle, interfaces[i]);
+    }
+    return rc;
 }
 
 int main(int argc, char **argv) {
@@ -405,14 +634,23 @@ int main(int argc, char **argv) {
     }
 
     libusb_device_handle *handle = NULL;
-    const known_device_t *match = NULL;
-    if (find_and_open(ctx, &handle, &match) < 0) {
-        fprintf(stderr, "Branche ta guitare et relance.\n");
+    const known_device_t *wired_match = NULL;
+    const wireless_receiver_t *wireless_match = NULL;
+    dev_type_t devtype = find_and_open(ctx, &handle, &wired_match, &wireless_match);
+    if (devtype == DEV_NONE) {
+        fprintf(stderr, "Branche ta guitare/receiver et relance.\n");
         libusb_exit(ctx);
         return 1;
     }
 
-    printf("Detecte : %s (VID 0x%04X PID 0x%04X)\n", match->name, match->vid, match->pid);
+    if (devtype == DEV_WIRELESS_RECEIVER) {
+        int rc = run_wireless(ctx, handle, wireless_match, gamepad_mode, verbose);
+        libusb_close(handle);
+        libusb_exit(ctx);
+        return rc;
+    }
+
+    printf("Detecte : %s (VID 0x%04X PID 0x%04X)\n", wired_match->name, wired_match->vid, wired_match->pid);
 
     int r = libusb_claim_interface(handle, 0);
     if (r < 0) {
