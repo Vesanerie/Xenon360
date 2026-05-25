@@ -1,6 +1,11 @@
 # Xenon360
 
-**Play Clone Hero on your Mac with your old Xbox 360 USB guitar.**
+[![Latest release](https://img.shields.io/github/v/release/Vesanerie/Xenon360?label=release&color=blue)](https://github.com/Vesanerie/Xenon360/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Vesanerie/Xenon360/total?color=green)](https://github.com/Vesanerie/Xenon360/releases)
+[![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%2011%2B%20Apple%20Silicon-lightgrey)](#)
+
+**Play Clone Hero, YARG, Rock Band on your Mac with your old Xbox 360 USB guitar.**
 
 Plug in your Guitar Hero X-plorer (or any Xbox 360 wired controller), install Xenon360, open Clone Hero. That's it. Your frets, your strums, your tilt, your whammy: all reach the game through the keyboard.
 
@@ -49,7 +54,9 @@ It translates the fret/strum/tilt to a keyboard event (A, S, J, K, L, arrows, sp
 Clone Hero receives the keypress and plays the note
 ```
 
-The watcher daemon means you never have to think about Xenon360. Open Clone Hero, Xenon360 starts itself. Close Clone Hero, Xenon360 quits itself. Battery, USB, everything is clean.
+The watcher daemon means you never have to think about Xenon360. Open the game, Xenon360 starts itself. Close the game, Xenon360 quits itself. Battery, USB, everything is clean.
+
+**Games detected for auto-launch**: Clone Hero, YARG, Fortnite Festival, Rock Band 4. For any other game: open `/Applications/Xenon360.app` manually before launching it.
 
 ### Default keyboard mapping (Clone Hero compatible)
 
@@ -101,22 +108,20 @@ Check the log: `tail -f /tmp/xenon360-watcher.log`. It should say *"Launched Xen
 **The Accessibility popup didn't show up.**
 That can happen if macOS thinks it already asked. Open *Settings > Privacy & Security > Accessibility*, click the **+** button, navigate to `/Applications/Xenon360.app`, and add it manually. Toggle it ON.
 
-**Other game (YARG, Fortnite Festival, Rock Band 4) instead of Clone Hero.**
-The auto-launch watcher only watches for the Clone Hero process. For other games: open `/Applications/Xenon360.app` manually before launching the game. Quit it from the menu bar when done.
+**Game not in the auto-launch list (anything other than Clone Hero / YARG / Fortnite Festival / Rock Band 4).**
+Open `/Applications/Xenon360.app` manually before launching it. Quit it from the menu bar when done. Or open an issue with the game's name and I'll add it.
 
 ## Advanced
 
 ### Analog whammy and tilt (gamepad mode)
 
-The keyboard mode is fine for 99% of players. But if you want **continuous analog whammy** (instead of binary keypress), there's a virtual HID gamepad mode. It requires disabling SIP and AMFI on your Mac, which is heavy. Worth it for hardcore players only.
+The keyboard mode is fine for 99% of players. But if you want **continuous analog whammy** (instead of binary keypress), there's a virtual HID gamepad mode invoked with the `-g` flag on the CLI. It requires disabling SIP and AMFI on your Mac, which is heavy. Worth it for hardcore players only. Open an issue for the procedure.
 
-See [docs/GAMEPAD-MODE.md](docs/GAMEPAD-MODE.md) (TODO) or open an issue for the procedure.
-
-### Wireless receiver (experimental, untested)
+### Wireless receiver (⚠️ experimental, NOT tested on real hardware)
 
 If you plug in a Microsoft Xbox 360 Wireless Receiver (VID `0x045E`, PID `0x0291`, `0x0719` or `0x02A1`), Xenon360 auto-detects it and listens to all 4 slots simultaneously. Up to 4 wireless controllers can be used.
 
-This code path is **not yet tested on real hardware**. It's based on the `xpad.c` Linux kernel driver protocol. Please open a GitHub issue if you test it, success or failure.
+> **Heads-up**: the maintainer doesn't own a wireless receiver, so this code path is theoretical. It's modeled on the Linux kernel `xpad` driver, but real hardware may behave differently. If you try it, please open a GitHub issue with the result (success or failure) so we can promote it from "alpha" to "actually works".
 
 ### Build from source
 
@@ -129,6 +134,10 @@ cd autolaunch && ./install.sh     # set up the auto-launch watcher
 ```
 
 The full signed/notarized release pipeline is documented in [RELEASE.md](RELEASE.md).
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full history of releases.
 
 ## Status and roadmap
 
