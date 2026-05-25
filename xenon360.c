@@ -442,6 +442,7 @@ typedef struct {
 } wireless_slot_t;
 
 static void wireless_send_led(wireless_slot_t *s, uint8_t pattern) {
+    if (!s->handle) return;
     uint8_t cmd[12] = {0x00, 0x00, 0x08, (uint8_t)(0x40 | pattern),
                        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
     int transferred = 0;
@@ -613,6 +614,7 @@ cleanup:
     return rc;
 }
 
+#ifndef XENON360_NO_MAIN
 int main(int argc, char **argv) {
     bool verbose = false;
     bool gamepad_mode = false;
@@ -736,3 +738,4 @@ int main(int argc, char **argv) {
     libusb_exit(ctx);
     return 0;
 }
+#endif
