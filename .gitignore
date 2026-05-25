@@ -1,4 +1,5 @@
 xenon360
+test_wireless
 *.o
 *.dSYM
 .DS_Store
