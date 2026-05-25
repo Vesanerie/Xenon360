@@ -4,7 +4,7 @@
 
 set -u
 
-XENON_BIN="$HOME/Desktop/OUTIL/Xenon360/xenon360"
+XENON_BIN="${XENON_BIN:-$HOME/Library/Application Support/Xenon360/xenon360}"
 PID_FILE="/tmp/xenon360-watcher.pid"
 CHECK_INTERVAL=3
 
