@@ -1,197 +1,147 @@
 # Xenon360
 
-Userspace driver to use an Xbox 360 USB guitar/controller on Apple Silicon Mac (M1/M2/M3/M4) with Clone Hero, YARG, and any game that accepts keyboard input.
+**Play Clone Hero on your Mac with your old Xbox 360 USB guitar.**
+
+Plug in your Guitar Hero X-plorer (or any Xbox 360 wired controller), install Xenon360, open Clone Hero. That's it. Your frets, your strums, your tilt, your whammy: all reach the game through the keyboard.
+
+Apple Silicon (M1/M2/M3/M4) only. macOS 11 Big Sur or later.
 
 Spiritual successor to [Tattiebogle 360Controller](https://tattiebogle.net/ProjectRoot/Xbox360Controller/OsxDriver), abandoned in 2013 and incompatible with Apple Silicon.
 
-## Status
+---
 
-- **v0.1**: wired USB read + keyboard injection (tested on X-plorer guitar).
-- **v0.2**: virtual HID gamepad (analog whammy/tilt, requires SIP/AMFI off).
-- **v0.3 alpha**: Xbox 360 USB wireless receiver support, 4-slot multiplex. Code written from the xpad.c reference but **not yet tested** by the maintainer (no wireless hardware on hand). GitHub issues / test reports very welcome.
+## Install (the easy way)
 
-Remaining roadmap: dedicated drums support, DriverKit migration for distribution without system modifications.
+1. Go to the [Releases page](https://github.com/Vesanerie/Xenon360/releases) and download the latest **Xenon360.pkg**.
+2. Double-click the `.pkg` file. The Apple Installer wizard opens.
+3. Click through Welcome → License → Install. Enter your Mac password when asked.
+4. Done. The installer set everything up.
 
-## Supported devices (126 entries, xpad.c table)
+What got installed:
+- `/Applications/Xenon360.app` (the menu bar app)
+- A small background watcher in `~/Library/LaunchAgents/` that auto-starts Xenon360 whenever you open Clone Hero, and quits it when you close the game
+- A copy of the bundled USB library (libusb) so you don't need Homebrew
 
-All common wired Xbox 360 peripherals are recognized:
+The installer is **signed by Apple Developer ID and notarized**, so macOS Gatekeeper opens it without complaints.
 
-**Official and third-party controllers**: Microsoft, Mad Catz, PDP, Hori, Razer, Logitech (F310/F510/F710), PowerA, Joytech, Pelican, Afterglow, Rock Candy, Snakebyte, GameSir, Nacon, BigBen, Saitek, Thrustmaster GPX, Amazon Game Controller, GPD Win 2, Wooting Legacy.
+## First launch (1-minute setup)
 
-**Rhythm game instruments**:
-- RedOctane Guitar Hero (X-plorer, World Tour, Warriors of Rock, other variants)
-- Harmonix Rock Band Guitar and Drumkit
-- Ion Drum Rocker
-- Mad Catz Wireless Guitar
-- Dancepads (HSM3, Honey Bee)
+1. Plug your **Xbox 360 USB guitar** into the Mac.
+2. Open **Clone Hero**.
+3. macOS pops up: *"Xenon360 would like to control this computer using accessibility features."*
+4. Click **Open System Settings**.
+5. Find **Xenon360** in the list and **toggle it ON**. macOS may ask for your password.
+6. Go back to Clone Hero. Strum.
 
-**Fightsticks and arcade**: Mad Catz SFIV/SE/TE/TES+/TE2/Brawlstick, Hori Real Arcade Pro, Razer Atrox, Razer Onza, MLG Pro Circuit, Mortal Kombat FightStick.
+This permission step only happens once per Mac. macOS remembers it forever after.
 
-**Wheels**: Mad Catz MC2 MicroCON Racing Wheel, Thrustmaster Ferrari 458.
+## How it works (in 30 seconds)
 
-The binary also scans all vendor-specific USB devices and displays their VID/PID if nothing known is detected (makes it easy to add new models).
+```
+You strum the guitar
+        ↓
+USB packet arrives on the Mac
+        ↓
+Xenon360 reads it (in the background, via the menu bar app)
+        ↓
+It translates the fret/strum/tilt to a keyboard event (A, S, J, K, L, arrows, space...)
+        ↓
+Clone Hero receives the keypress and plays the note
+```
 
-## Install
+The watcher daemon means you never have to think about Xenon360. Open Clone Hero, Xenon360 starts itself. Close Clone Hero, Xenon360 quits itself. Battery, USB, everything is clean.
 
-### Recommended: signed installer
+### Default keyboard mapping (Clone Hero compatible)
 
-Download `Xenon360.pkg` from the latest release at
-https://github.com/Vesanerie/Xenon360/releases, double-click, follow the wizard.
-The installer:
+| Guitar              | Keyboard      |
+|---------------------|---------------|
+| Green fret          | A             |
+| Red fret            | S             |
+| Yellow fret         | J             |
+| Blue fret           | K             |
+| Orange fret         | L             |
+| Strum up            | Arrow up      |
+| Strum down          | Arrow down    |
+| Tilt (star power)   | Space         |
+| Start               | Enter         |
+| Back                | Escape        |
 
-- Drops `Xenon360.app` into `/Applications`
-- Sets up the Clone Hero auto-launch watcher in `~/Library/LaunchAgents`
-- Tells you what to do for the Accessibility permission on the conclusion screen
+These are the Clone Hero defaults, so you don't need to configure anything.
 
-Plug in your guitar, open Clone Hero, accept the Accessibility prompt the first
-time. Done.
+## Supported devices (126 of them)
 
-### From source (devs)
+Anything in the [Linux kernel `xpad` driver table](https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c) works:
+
+- **Guitars and drums**: RedOctane Guitar Hero (X-plorer, World Tour, Warriors of Rock), Harmonix Rock Band Guitar and Drumkit, Ion Drum Rocker, Mad Catz Wireless Guitar, dancepads.
+- **Controllers**: official Microsoft Xbox 360, Mad Catz, PDP, Hori, Razer, Logitech (F310/F510/F710), PowerA, Joytech, Pelican, Afterglow, Rock Candy, Snakebyte, GameSir, Nacon, BigBen, Saitek, Thrustmaster GPX, Amazon Game Controller, GPD Win 2, Wooting Legacy.
+- **Fightsticks**: Mad Catz SFIV/SE/TE/TES+/TE2/Brawlstick, Hori Real Arcade Pro, Razer Atrox, Razer Onza, MLG Pro Circuit, Mortal Kombat FightStick.
+- **Wheels**: Mad Catz MC2 MicroCON Racing Wheel, Thrustmaster Ferrari 458.
+
+If your device shows up as "vendor-specific USB" but isn't in the list, run from a terminal: `Xenon360.app/Contents/Resources/xenon360 -v` and open a GitHub issue with the VID/PID it prints. Easy to add.
+
+## Uninstall
+
+```bash
+/Applications/Xenon360.app/Contents/Resources/uninstall.sh
+```
+
+This removes the LaunchAgent, the staging files in `~/Library/Application Support/Xenon360/`, and quits Xenon360.app. You can then move `Xenon360.app` from `/Applications` to the Trash.
+
+## Troubleshooting
+
+**Nothing happens when I strum.**
+Check the menu bar (top right of your screen). The Xenon360 icon should be there. Click it:
+- If it says "Aucune guitare détectée": unplug/replug the USB.
+- If you see a ⚠ warning about Accessibility: click "Ouvrir Réglages Accessibilité" and toggle Xenon360 ON.
+- If Clone Hero is the focused window but keys still don't register, fully quit Clone Hero and reopen it.
+
+**Watcher isn't starting Xenon360 automatically.**
+Check the log: `tail -f /tmp/xenon360-watcher.log`. It should say *"Launched Xenon360.app"* within 3 seconds of opening Clone Hero. If not, the watcher might not be loaded: run the installer .pkg again.
+
+**The Accessibility popup didn't show up.**
+That can happen if macOS thinks it already asked. Open *Settings > Privacy & Security > Accessibility*, click the **+** button, navigate to `/Applications/Xenon360.app`, and add it manually. Toggle it ON.
+
+**Other game (YARG, Fortnite Festival, Rock Band 4) instead of Clone Hero.**
+The auto-launch watcher only watches for the Clone Hero process. For other games: open `/Applications/Xenon360.app` manually before launching the game. Quit it from the menu bar when done.
+
+## Advanced
+
+### Analog whammy and tilt (gamepad mode)
+
+The keyboard mode is fine for 99% of players. But if you want **continuous analog whammy** (instead of binary keypress), there's a virtual HID gamepad mode. It requires disabling SIP and AMFI on your Mac, which is heavy. Worth it for hardcore players only.
+
+See [docs/GAMEPAD-MODE.md](docs/GAMEPAD-MODE.md) (TODO) or open an issue for the procedure.
+
+### Wireless receiver (experimental, untested)
+
+If you plug in a Microsoft Xbox 360 Wireless Receiver (VID `0x045E`, PID `0x0291`, `0x0719` or `0x02A1`), Xenon360 auto-detects it and listens to all 4 slots simultaneously. Up to 4 wireless controllers can be used.
+
+This code path is **not yet tested on real hardware**. It's based on the `xpad.c` Linux kernel driver protocol. Please open a GitHub issue if you test it, success or failure.
+
+### Build from source
 
 ```bash
 brew install libusb
 git clone https://github.com/Vesanerie/Xenon360.git
 cd Xenon360
-make app         # builds Xenon360.app (ad-hoc signed)
-# Optional: auto-launch with Clone Hero
-cd autolaunch && ./install.sh
+make app                          # builds Xenon360.app (ad-hoc signed)
+cd autolaunch && ./install.sh     # set up the auto-launch watcher
 ```
 
-See [RELEASE.md](RELEASE.md) for the signed/notarized release pipeline.
+The full signed/notarized release pipeline is documented in [RELEASE.md](RELEASE.md).
 
-## Usage
+## Status and roadmap
 
-Plug in your guitar via USB, then:
-
-```bash
-./xenon360
-```
-
-Keyboard mapping (compatible with Clone Hero by default):
-
-| Guitar          | Keyboard |
-|-----------------|----------|
-| Green fret      | A        |
-| Red fret        | S        |
-| Yellow fret     | J        |
-| Blue fret       | K        |
-| Orange fret     | L        |
-| Strum up        | Arrow up |
-| Strum down      | Arrow down |
-| Tilt (star power) | Space |
-| Start           | Enter    |
-| Back            | Escape   |
-
-Verbose mode for protocol debugging:
-
-```bash
-./xenon360 -v
-```
-
-## macOS Permissions
-
-On first launch, macOS requests **Accessibility** authorization for Terminal (required to inject keyboard events).
-
-Settings > Privacy & Security > Accessibility > enable Terminal.
-
-## Gamepad mode (v0.2): analog whammy and tilt
-
-Keyboard mode cannot send the whammy continuously (keys are binary). For analog bending, run with `-g`:
-
-```bash
-./xenon360 -g
-```
-
-But beware: on Apple Silicon, creating a virtual HID requires disabling SIP + AMFI. Procedure:
-
-### 1. csrutil disable (in Recovery)
-
-1. Shut down your Mac
-2. Hold the power button until you see "Loading startup options..."
-3. Options > your account > password
-4. Utilities menu > Terminal
-5. `csrutil disable` then `y` and admin password
-6. Reboot
-
-### 2. AMFI disable
-
-Once reconnected in normal mode:
-
-```bash
-sudo nvram boot-args="amfi_get_out_of_my_way=0x1 ipc_control_port_options=0"
-sudo shutdown -r now
-```
-
-### 3. Verification
-
-```bash
-csrutil status        # must show "disabled"
-nvram boot-args       # must show amfi_get_out_of_my_way=0x1
-```
-
-### 4. Launch in gamepad mode
-
-```bash
-./xenon360 -g
-```
-
-The "Xenon360 Virtual Guitar" device appears in Clone Hero (Settings > Controls).
-
-### Revert (re-enable SIP)
-
-Reverse everything:
-
-```bash
-sudo nvram -d boot-args
-```
-
-Then reboot into Recovery and `csrutil enable`.
-
-## Wireless receiver mode (v0.3, untested)
-
-If you plug in a Microsoft Xbox 360 Wireless Receiver (VID `0x045E`, PID `0x0291`, `0x0719` or `0x02A1`), the binary auto-detects it, claims all 4 data interfaces, and starts listening on the 4 slots simultaneously.
-
-On each controller connection:
-- The corresponding LED quadrant lights up (slot 1 = top-left, 2 = top-right, 3 = bottom-left, 4 = bottom-right).
-- The slot status is logged to stdout.
-
-In keyboard mode (default), only **slot 1** injects keys (to avoid collisions when multiple players press the same fret). For multi-player, use `--gamepad`:
-
-```bash
-./xenon360 -g
-```
-
-Each slot then exposes its own virtual HID device named `Xenon360 Virtual Guitar Slot N`, with a distinct ProductID (`0x5860 + slot`) so Clone Hero can bind them independently.
-
-**Limitation**: this code path has not been tested against real hardware (the maintainer only has a wired X-plorer). It is based on the `xpad.c` Linux kernel driver protocol. Please open a GitHub issue if you test it, success or failure.
-
-## Auto-launch with Clone Hero
-
-Tired of starting `./xenon360` manually before every session? Install the watcher LaunchAgent:
-
-```bash
-cd autolaunch
-./install.sh
-```
-
-A background daemon polls every 3 seconds for the Clone Hero game process. When detected, it launches `Xenon360.app` (via AppleScript for proper TCC inheritance) and quits it when the game exits. Logs land in `/tmp/xenon360-watcher.log`. Remove it with `./uninstall.sh`.
-
-After the first auto-launch, macOS will ask for **Accessibility** permission on `Xenon360.app` (bundle ID `dev.vesanerie.xenon360`). Grant it once in Settings > Privacy & Security > Accessibility. The bundled CLI inherits the bundle's permission so injection works under launchd.
-
-> Why the .app and not the bare CLI? macOS TCC for Accessibility requires a stable code-signing identity to track permissions across rebuilds. A linker-signed standalone Mach-O gets a fresh ad-hoc identity on every compile, which breaks the grant. The .app bundle ID is stable, and the watcher launches via AppleEvents so the responsible-process attribution falls on the loginwindow session rather than launchd.
-
-## Roadmap
-
-- [x] v0.1: keyboard injection for wired Clone Hero guitar
-- [x] v0.2: Virtual HID gamepad via IOHIDUserDevice (analog whammy/tilt, requires SIP off)
-- [x] v0.3: Xbox 360 USB wireless receiver support, 4-slot multiplex (alpha, untested)
-- [x] v0.3.1: LaunchAgent auto-launch watcher for Clone Hero
-- [ ] v0.4: Swift menu bar app polish (NSWorkspace event-driven autolaunch instead of polling)
-- [ ] v1.0: DriverKit dext migration (zero system modification, Mac App Store distributable)
+- [x] **v0.1**: wired USB read + keyboard injection
+- [x] **v0.2**: virtual HID gamepad (analog whammy/tilt, requires SIP off)
+- [x] **v0.3**: Xbox 360 USB wireless receiver, 4-slot multiplex (alpha, untested on real hardware)
+- [x] **v0.3.1**: signed PKG installer, auto-launch watcher, end-to-end tested
+- [ ] **v0.4**: NSWorkspace event-driven autolaunch (replace 3s polling), drums-specific support
+- [ ] **v1.0**: DriverKit migration for distribution without any system modifications
 
 ## Credits
 
-Xbox 360 USB protocol documented by:
+Xbox 360 USB protocol learned from:
 - [Parts Not Included](https://www.partsnotincluded.com/understanding-the-xbox-360-wired-controllers-usb-data/)
 - [Linux kernel xpad driver](https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c)
 - [Tattiebogle USB info](https://tattiebogle.net/ProjectRoot/Xbox360Controller/UsbInfo)
@@ -199,4 +149,12 @@ Xbox 360 USB protocol documented by:
 
 ## License
 
-GPL-2.0-or-later
+GPL-2.0-or-later. See [LICENSE](LICENSE).
+
+This project bundles **libusb** (LGPL-2.1, source at https://github.com/libusb/libusb).
+
+---
+
+# 🎸 HAVE FUN. BE ROCK. 🎸
+
+Built by [Vesanerie](https://github.com/Vesanerie) for everyone with an old plastic guitar gathering dust in a closet. Pull requests welcome.
