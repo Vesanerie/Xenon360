@@ -1,33 +1,35 @@
 # Xenon360
 
-Driver userspace pour utiliser une guitare/manette Xbox 360 USB sur Mac Apple Silicon (M1/M2/M3/M4) avec Clone Hero, YARG, et tout jeu qui accepte le clavier.
+Userspace driver to use an Xbox 360 USB guitar/controller on Apple Silicon Mac (M1/M2/M3/M4) with Clone Hero, YARG, and any game that accepts keyboard input.
 
-Successeur spirituel de [Tattiebogle 360Controller](https://tattiebogle.net/ProjectRoot/Xbox360Controller/OsxDriver), abandonné en 2013 et incompatible avec Apple Silicon.
+Spiritual successor to [Tattiebogle 360Controller](https://tattiebogle.net/ProjectRoot/Xbox360Controller/OsxDriver), abandoned in 2013 and incompatible with Apple Silicon.
 
-## Statut
+## Status
 
-**v0.1 alpha** : lecture USB + injection clavier. Cible : guitare 5 frettes filaire Xbox 360 pour Clone Hero.
+- **v0.1**: wired USB read + keyboard injection (tested on X-plorer guitar).
+- **v0.2**: virtual HID gamepad (analog whammy/tilt, requires SIP/AMFI off).
+- **v0.3 alpha**: Xbox 360 USB wireless receiver support, 4-slot multiplex. Code written from the xpad.c reference but **not yet tested** by the maintainer (no wireless hardware on hand). GitHub issues / test reports very welcome.
 
-Roadmap : virtual HID gamepad (whammy/tilt analogiques), support wireless receiver, support drums, migration DriverKit pour distribution sans modif système.
+Remaining roadmap: dedicated drums support, DriverKit migration for distribution without system modifications.
 
-## Devices supportés (126 entrées, table xpad.c)
+## Supported devices (126 entries, xpad.c table)
 
-Tous les périphériques Xbox 360 wired courants sont reconnus :
+All common wired Xbox 360 peripherals are recognized:
 
-**Manettes officielles + tiers** : Microsoft, Mad Catz, PDP, Hori, Razer, Logitech (F310/F510/F710), PowerA, Joytech, Pelican, Afterglow, Rock Candy, Snakebyte, GameSir, Nacon, BigBen, Saitek, Thrustmaster GPX, Amazon Game Controller, GPD Win 2, Wooting Legacy.
+**Official and third-party controllers**: Microsoft, Mad Catz, PDP, Hori, Razer, Logitech (F310/F510/F710), PowerA, Joytech, Pelican, Afterglow, Rock Candy, Snakebyte, GameSir, Nacon, BigBen, Saitek, Thrustmaster GPX, Amazon Game Controller, GPD Win 2, Wooting Legacy.
 
-**Instruments rhythm games** :
-- RedOctane Guitar Hero (X-plorer, World Tour, Warriors of Rock, autres variantes)
-- Harmonix Rock Band Guitar et Drumkit
+**Rhythm game instruments**:
+- RedOctane Guitar Hero (X-plorer, World Tour, Warriors of Rock, other variants)
+- Harmonix Rock Band Guitar and Drumkit
 - Ion Drum Rocker
 - Mad Catz Wireless Guitar
 - Dancepads (HSM3, Honey Bee)
 
-**Fightsticks et arcade** : Mad Catz SFIV/SE/TE/TES+/TE2/Brawlstick, Hori Real Arcade Pro, Razer Atrox, Razer Onza, MLG Pro Circuit, Mortal Kombat FightStick.
+**Fightsticks and arcade**: Mad Catz SFIV/SE/TE/TES+/TE2/Brawlstick, Hori Real Arcade Pro, Razer Atrox, Razer Onza, MLG Pro Circuit, Mortal Kombat FightStick.
 
-**Volants** : Mad Catz MC2 MicroCON Racing Wheel, Thrustmaster Ferrari 458.
+**Wheels**: Mad Catz MC2 MicroCON Racing Wheel, Thrustmaster Ferrari 458.
 
-Le binaire scanne aussi tous les devices USB vendor-specific et affiche leur VID/PID si rien de connu n'est détecté (permet d'ajouter facilement de nouveaux modèles).
+The binary also scans all vendor-specific USB devices and displays their VID/PID if nothing known is detected (makes it easy to add new models).
 
 ## Install
 
@@ -40,61 +42,61 @@ make
 
 ## Usage
 
-Branche ta guitare en USB, puis :
+Plug in your guitar via USB, then:
 
 ```bash
 ./xenon360
 ```
 
-Mapping clavier (compatible Clone Hero par defaut) :
+Keyboard mapping (compatible with Clone Hero by default):
 
-| Guitare         | Clavier  |
+| Guitar          | Keyboard |
 |-----------------|----------|
-| Frette verte    | A        |
-| Frette rouge    | S        |
-| Frette jaune    | J        |
-| Frette bleue    | K        |
-| Frette orange   | L        |
-| Strum up        | Fleche haut |
-| Strum down      | Fleche bas  |
-| Tilt (star power) | Espace |
-| Start           | Entree   |
-| Back            | Echap    |
+| Green fret      | A        |
+| Red fret        | S        |
+| Yellow fret     | J        |
+| Blue fret       | K        |
+| Orange fret     | L        |
+| Strum up        | Arrow up |
+| Strum down      | Arrow down |
+| Tilt (star power) | Space |
+| Start           | Enter    |
+| Back            | Escape   |
 
-Mode verbose pour debug protocole :
+Verbose mode for protocol debugging:
 
 ```bash
 ./xenon360 -v
 ```
 
-## Permissions macOS
+## macOS Permissions
 
-Au premier lancement macOS demande l'autorisation **Accessibility** pour Terminal (necessaire pour injecter des evenements clavier).
+On first launch, macOS requests **Accessibility** authorization for Terminal (required to inject keyboard events).
 
-Reglages > Confidentialite et securite > Accessibilite > activer Terminal.
+Settings > Privacy & Security > Accessibility > enable Terminal.
 
-## Mode gamepad (v0.2) : whammy et tilt analogiques
+## Gamepad mode (v0.2): analog whammy and tilt
 
-Le mode clavier ne peut pas envoyer le whammy en continu (les touches sont binaires). Pour le bending analogique, lance avec `-g` :
+Keyboard mode cannot send the whammy continuously (keys are binary). For analog bending, run with `-g`:
 
 ```bash
 ./xenon360 -g
 ```
 
-Mais attention : sur Apple Silicon, creer un HID virtuel necessite de desactiver SIP + AMFI. Procedure :
+But beware: on Apple Silicon, creating a virtual HID requires disabling SIP + AMFI. Procedure:
 
-### 1. csrutil disable (en Recovery)
+### 1. csrutil disable (in Recovery)
 
-1. Eteins ton Mac
-2. Maintiens le bouton power jusqu'a voir "Chargement des options de demarrage..."
-3. Options > ton compte > mot de passe
-4. Menu Utilitaires > Terminal
-5. `csrutil disable` puis `y` et mot de passe admin
+1. Shut down your Mac
+2. Hold the power button until you see "Loading startup options..."
+3. Options > your account > password
+4. Utilities menu > Terminal
+5. `csrutil disable` then `y` and admin password
 6. Reboot
 
 ### 2. AMFI disable
 
-Une fois reconnecte en mode normal :
+Once reconnected in normal mode:
 
 ```bash
 sudo nvram boot-args="amfi_get_out_of_my_way=0x1 ipc_control_port_options=0"
@@ -104,43 +106,61 @@ sudo shutdown -r now
 ### 3. Verification
 
 ```bash
-csrutil status        # doit afficher "disabled"
-nvram boot-args       # doit afficher amfi_get_out_of_my_way=0x1
+csrutil status        # must show "disabled"
+nvram boot-args       # must show amfi_get_out_of_my_way=0x1
 ```
 
-### 4. Lancer en mode gamepad
+### 4. Launch in gamepad mode
 
 ```bash
 ./xenon360 -g
 ```
 
-Le device "Xenon360 Virtual Guitar" apparait dans Clone Hero (Settings > Controls).
+The "Xenon360 Virtual Guitar" device appears in Clone Hero (Settings > Controls).
 
-### Annuler (re-enable SIP)
+### Revert (re-enable SIP)
 
-Reverser tout :
+Reverse everything:
 
 ```bash
 sudo nvram -d boot-args
 ```
 
-Puis reboot en Recovery et `csrutil enable`.
+Then reboot into Recovery and `csrutil enable`.
+
+## Wireless receiver mode (v0.3, untested)
+
+If you plug in a Microsoft Xbox 360 Wireless Receiver (VID `0x045E`, PID `0x0291`, `0x0719` or `0x02A1`), the binary auto-detects it, claims all 4 data interfaces, and starts listening on the 4 slots simultaneously.
+
+On each controller connection:
+- The corresponding LED quadrant lights up (slot 1 = top-left, 2 = top-right, 3 = bottom-left, 4 = bottom-right).
+- The slot status is logged to stdout.
+
+In keyboard mode (default), only **slot 1** injects keys (to avoid collisions when multiple players press the same fret). For multi-player, use `--gamepad`:
+
+```bash
+./xenon360 -g
+```
+
+Each slot then exposes its own virtual HID device named `Xenon360 Virtual Guitar Slot N`, with a distinct ProductID (`0x5860 + slot`) so Clone Hero can bind them independently.
+
+**Limitation**: this code path has not been tested against real hardware (the maintainer only has a wired X-plorer). It is based on the `xpad.c` Linux kernel driver protocol. Please open a GitHub issue if you test it, success or failure.
 
 ## Roadmap
 
-- [x] v0.1 : injection clavier pour guitare wired Clone Hero
-- [x] v0.2 : Virtual HID gamepad via IOHIDUserDevice (whammy/tilt analogiques, requiert SIP off)
-- [ ] v0.3 : support wireless receiver Xbox 360 USB (multiplex 4 manettes)
-- [ ] v0.4 : menu bar app Swift + auto-launch
-- [ ] v1.0 : migration DriverKit dext (zero modif systeme, distribuable Mac App Store)
+- [x] v0.1: keyboard injection for wired Clone Hero guitar
+- [x] v0.2: Virtual HID gamepad via IOHIDUserDevice (analog whammy/tilt, requires SIP off)
+- [x] v0.3: Xbox 360 USB wireless receiver support, 4-slot multiplex (alpha, untested)
+- [ ] v0.4: Swift menu bar app + auto-launch
+- [ ] v1.0: DriverKit dext migration (zero system modification, Mac App Store distributable)
 
 ## Architecture
 
-Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (TODO).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (TODO).
 
 ## Credits
 
-Protocole USB Xbox 360 documente par :
+Xbox 360 USB protocol documented by:
 - [Parts Not Included](https://www.partsnotincluded.com/understanding-the-xbox-360-wired-controllers-usb-data/)
 - [Linux kernel xpad driver](https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c)
 - [Tattiebogle USB info](https://tattiebogle.net/ProjectRoot/Xbox360Controller/UsbInfo)
