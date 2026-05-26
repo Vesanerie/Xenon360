@@ -148,6 +148,12 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history of releases.
 - [ ] **v0.4**: NSWorkspace event-driven autolaunch (replace 3s polling), drums-specific support
 - [ ] **v1.0**: DriverKit migration for distribution without any system modifications
 
+## How this was built
+
+This project was developed with significant assistance from Claude (Anthropic's AI). I designed the goal, debugged the macOS edge cases on real hardware (Guitar Hero X-plorer + Clone Hero), made the architectural calls, and tested every change end-to-end on my own machine. Claude generated most of the C and shell code under my direction, helped untangle TCC / codesigning / notarization rabbit holes faster than I could solo, and proposed the audit that caught the bundle-relocation bug before any user hit it.
+
+Disclosing upfront because some folks care about provenance, and you should know. The protocol knowledge itself comes from human-written sources, credited below.
+
 ## Credits
 
 Xbox 360 USB protocol learned from:
