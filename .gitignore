@@ -9,3 +9,6 @@ pkg/build/
 *.dSYM
 .DS_Store
 build/
+
+# Doc interne Claude (non versionnee)
+CLAUDE.md
