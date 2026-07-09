@@ -113,6 +113,36 @@ Open `/Applications/Xenon360.app` manually before launching it. Quit it from the
 
 ## Advanced
 
+### Fret dropouts on an aging guitar (`--poll`)
+
+Older X-plorers develop **intermittent fret dropouts**: a held fret briefly cuts out mid-sustain (worse when you move the guitar), so sustains break and fast strums don't register. The root cause is hardware — a flaky neck ribbon connector or cold solder joints — but a lot of it is made worse by *how* the input is delivered.
+
+By default, keyboard mode is **edge-triggered**: it fires a key event on every USB transition, so *every* micro-dropout reaches the game. Windows doesn't have this problem because XInput games **poll** the pad on a fixed clock — a glitch that heals between two polls is never seen.
+
+`--poll` makes Xenon360 do the same:
+
+```bash
+xenon360 --poll 60          # re-sample the whole fret state at 60 Hz (~16 ms),
+                            # emit only the changes — Windows-style polling
+```
+
+Because it re-reads the full state each tick and never *holds* a fret, it filters short glitches without adding release latency or merging fast notes (it can't cause the missed-note "phantom holds" a naive debounce would). Higher Hz = lower latency, less filtering; lower Hz hides more chatter but adds latency and can clip very fast notes. Start at `--poll 60`, drop toward `40` if short dropouts still slip through. Note: genuinely *long* dropouts (tens to hundreds of ms) outlast any playable tick and still need the hardware fix.
+
+### Disabling a broken tilt sensor (`--no-tilt`)
+
+If your guitar's tilt/accelerometer is dead or noisy and keeps firing star power (Space) at random, `--no-tilt` ignores that axis entirely.
+
+### Enabling these through the auto-launch app
+
+The CLI flags above apply when you run `xenon360` directly. When Xenon360 is started by the menu-bar app / watcher, set them once via preferences (both default off, so nothing changes for healthy guitars):
+
+```bash
+defaults write dev.vesanerie.xenon360 PollHz -int 60
+defaults write dev.vesanerie.xenon360 NoTilt -bool YES   # optional
+```
+
+Quit and relaunch Xenon360.app for the change to take effect.
+
 ### Analog whammy and tilt (gamepad mode)
 
 The keyboard mode is fine for 99% of players. But if you want **continuous analog whammy** (instead of binary keypress), there's a virtual HID gamepad mode invoked with the `-g` flag on the CLI. It requires disabling SIP and AMFI on your Mac, which is heavy. Worth it for hardcore players only. Open an issue for the procedure.

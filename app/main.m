@@ -116,7 +116,24 @@
 
     self.cliTask = [[NSTask alloc] init];
     self.cliTask.launchPath = cliPath;
-    self.cliTask.arguments = self.gamepadMode ? @[@"-g"] : @[];
+
+    // Args: gamepad mode plus opt-in fixes read from the app's preferences
+    // domain (dev.vesanerie.xenon360). Both default off, so healthy setups are
+    // unaffected. Enable with:
+    //   defaults write dev.vesanerie.xenon360 PollHz -int 60    (aging guitar)
+    //   defaults write dev.vesanerie.xenon360 NoTilt -bool YES  (broken tilt)
+    NSUserDefaults *defs = [NSUserDefaults standardUserDefaults];
+    NSMutableArray<NSString *> *args = [NSMutableArray array];
+    if (self.gamepadMode) [args addObject:@"-g"];
+    NSInteger pollHz = [defs integerForKey:@"PollHz"];
+    if (pollHz > 0) {
+        [args addObject:@"--poll"];
+        [args addObject:[NSString stringWithFormat:@"%ld", (long)pollHz]];
+    }
+    if ([defs boolForKey:@"NoTilt"]) {
+        [args addObject:@"--no-tilt"];
+    }
+    self.cliTask.arguments = args;
 
     NSPipe *outPipe = [NSPipe pipe];
     self.cliTask.standardOutput = outPipe;
