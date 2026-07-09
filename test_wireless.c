@@ -6,6 +6,9 @@
 static int g_pass = 0;
 static int g_fail = 0;
 
+// Shared config for slot tests (process_packet dereferences slot->cfg).
+static const config_t g_test_cfg = { .verbose = false, .no_tilt = false, .poll_hz = 0 };
+
 #define CHECK(cond, name)                                              \
     do {                                                                \
         if (cond) { g_pass++; printf("  PASS: %s\n", name); }           \
@@ -42,6 +45,7 @@ static void test_wireless_match(void) {
 static void test_presence_transitions(void) {
     printf("\n[test_presence_transitions]\n");
     wireless_slot_t s = {0};
+    s.cfg = &g_test_cfg;
     s.slot = 0;
     s.handle = NULL;
     s.keyboard_mode = true;
@@ -67,6 +71,7 @@ static void test_presence_transitions(void) {
 static void test_packet_dispatch(void) {
     printf("\n[test_packet_dispatch]\n");
     wireless_slot_t s = {0};
+    s.cfg = &g_test_cfg;
     s.handle = NULL;
     s.keyboard_mode = true;
     s.slot = 0;
@@ -88,6 +93,7 @@ static void test_packet_dispatch(void) {
 static void test_keyboard_slot_isolation(void) {
     printf("\n[test_keyboard_slot_isolation]\n");
     wireless_slot_t s = {0};
+    s.cfg = &g_test_cfg;
     s.handle = NULL;
     s.keyboard_mode = true;
     s.slot = 1;

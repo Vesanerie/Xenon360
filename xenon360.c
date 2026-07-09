@@ -5,6 +5,7 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/time.h>
 #include <libusb-1.0/libusb.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <CoreFoundation/CoreFoundation.h>
@@ -209,7 +210,35 @@ typedef struct {
     uint8_t  b4_last;
     uint8_t  b5_last;
     int16_t  lx_last, ly_last, rx_last, ry_last;
+    // Latest raw digital snapshot, for polling keyboard mode (emit on a fixed
+    // clock instead of on every USB transition).
+    bool     latest_fret[5];   // 0=green 1=red 2=yellow 3=blue 4=orange
+    bool     latest_strum_up, latest_strum_down;
+    bool     latest_start, latest_back, latest_tilt;
+    double   last_poll_ms;     // when we last emitted a polled snapshot
 } state_t;
+
+typedef struct {
+    bool verbose;
+    bool no_tilt;   // ignore the tilt / star-power axis entirely (for guitars
+                    // whose tilt sensor is broken or noisy).
+    int  poll_hz;   // 0 = edge mode (emit a key event on every USB transition);
+                    // else re-sample the whole state at this rate and emit only
+                    // the changes, the way Windows XInput polling works. A glitch
+                    // that heals between two ticks is never seen, and because it
+                    // never holds a fret it can't cause missed-note "phantom
+                    // holds". Keyboard mode only.
+} config_t;
+
+// Milliseconds since first call — drives the polling clock.
+static double now_ms(void) {
+    static double t0 = -1.0;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    double ms = tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
+    if (t0 < 0) t0 = ms;
+    return ms - t0;
+}
 
 static volatile int keep_running = 1;
 static void sigint_handler(int sig) { (void)sig; keep_running = 0; }
@@ -245,7 +274,8 @@ static void update_key(bool *prev, bool current, CGKeyCode key) {
     }
 }
 
-static void process_packet(const uint8_t *data, int len, state_t *state, bool verbose, vhid_t *vhid) {
+static void process_packet(const uint8_t *data, int len, state_t *state, const config_t *cfg, vhid_t *vhid) {
+    bool verbose = cfg->verbose;
     if (len < 14) return;
     if (data[0] != 0x00) return;
 
@@ -272,7 +302,18 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
     uint8_t b4 = data[4];
     uint8_t b5 = data[5];
 
-    bool tilt = ry > 22000;
+    bool tilt = cfg->no_tilt ? false : (ry > 22000);
+
+    // Record the latest raw digital state so polling mode can emit it on its
+    // own clock.
+    state->latest_fret[0] = btn_a;  state->latest_fret[1] = btn_b;
+    state->latest_fret[2] = btn_y;  state->latest_fret[3] = btn_x;
+    state->latest_fret[4] = btn_lb;
+    state->latest_strum_up   = dpad_up;
+    state->latest_strum_down = dpad_down;
+    state->latest_start      = btn_start;
+    state->latest_back       = btn_back;
+    state->latest_tilt       = tilt;
 
     bool digital_change =
         (state->green != btn_a) || (state->red != btn_b) ||
@@ -313,7 +354,7 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
         r.lx = lx;
         r.ly = ly;
         r.rx = rx;
-        r.ry = ry;
+        r.ry = cfg->no_tilt ? 0 : ry;
         if (dpad_up && dpad_left)        r.hat = 7;
         else if (dpad_up && dpad_right)  r.hat = 1;
         else if (dpad_down && dpad_left) r.hat = 5;
@@ -324,7 +365,8 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
         else if (dpad_left)              r.hat = 6;
         else                             r.hat = 8;
         vhid_send(vhid, &r);
-    } else {
+    } else if (cfg->poll_hz <= 0) {
+        // Edge mode: emit immediately on every transition (original behavior).
         update_key(&state->green,     btn_a,            KEY_A);
         update_key(&state->red,       btn_b,            KEY_S);
         update_key(&state->yellow,    btn_y,            KEY_J);
@@ -336,6 +378,7 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
         update_key(&state->back,      btn_back,         KEY_ESCAPE);
         update_key(&state->star_power,tilt,             KEY_SPACE);
     }
+    // Poll mode: emission happens in emit_polled() on the poll clock.
 
     if (verbose && (digital_change || analog_change)) {
         printf("G%d R%d Y%d B%d O%d strum:%c%c start:%d back:%d | b4=%3u b5=%3u | LX=%6d LY=%6d RX=%6d RY=%6d\n",
@@ -345,6 +388,23 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
                b4, b5, lx, ly, rx, ry);
         fflush(stdout);
     }
+}
+
+// Polling keyboard mode: snapshot the latest raw state and emit only the
+// changes. Called on a fixed clock, so a glitch that heals between two ticks is
+// never seen (like Windows XInput polling). It re-reads the whole state each
+// tick and never holds a fret, so it can't cause phantom-hold misses.
+static void emit_polled(state_t *state) {
+    update_key(&state->green,      state->latest_fret[0],    KEY_A);
+    update_key(&state->red,        state->latest_fret[1],    KEY_S);
+    update_key(&state->yellow,     state->latest_fret[2],    KEY_J);
+    update_key(&state->blue,       state->latest_fret[3],    KEY_K);
+    update_key(&state->orange,     state->latest_fret[4],    KEY_L);
+    update_key(&state->strum_up,   state->latest_strum_up,   KEY_UP);
+    update_key(&state->strum_down, state->latest_strum_down, KEY_DOWN);
+    update_key(&state->start,      state->latest_start,      KEY_RETURN);
+    update_key(&state->back,       state->latest_back,       KEY_ESCAPE);
+    update_key(&state->star_power, state->latest_tilt,       KEY_SPACE);
 }
 
 static void release_all_keys(state_t *state) {
@@ -438,7 +498,7 @@ typedef struct {
     state_t state;
     bool present;
     vhid_t *vhid;
-    bool verbose;
+    const config_t *cfg;
     bool keyboard_mode;
     uint8_t in_ep;
     uint8_t out_ep;
@@ -451,7 +511,7 @@ static void wireless_send_led(wireless_slot_t *s, uint8_t pattern) {
     int transferred = 0;
     int r = libusb_interrupt_transfer(s->handle, s->out_ep, cmd, sizeof(cmd),
                                       &transferred, 100);
-    if (r < 0 && s->verbose) {
+    if (r < 0 && s->cfg->verbose) {
         fprintf(stderr, "Slot %d : LED send failed (%s)\n",
                 s->slot + 1, libusb_error_name(r));
     }
@@ -478,13 +538,13 @@ static void wireless_handle_packet(wireless_slot_t *s, const uint8_t *data, int 
 
     if (data[1] == 0x01 && len >= 18) {
         if (s->keyboard_mode && s->slot != 0) {
-            if (s->verbose) {
+            if (s->cfg->verbose) {
                 printf("Slot %d input (ignore : clavier sur slot 1 uniquement)\n", s->slot + 1);
                 fflush(stdout);
             }
             return;
         }
-        process_packet(data + 4, len - 4, &s->state, s->verbose, s->vhid);
+        process_packet(data + 4, len - 4, &s->state, s->cfg, s->vhid);
     }
 }
 
@@ -499,7 +559,7 @@ static void LIBUSB_CALL wireless_cb(struct libusb_transfer *xfer) {
         return;
     } else if (xfer->status != LIBUSB_TRANSFER_TIMED_OUT &&
                xfer->status != LIBUSB_TRANSFER_CANCELLED) {
-        if (s->verbose) {
+        if (s->cfg->verbose) {
             fprintf(stderr, "Slot %d transfer status %d\n", s->slot + 1, xfer->status);
         }
     }
@@ -516,7 +576,8 @@ static void LIBUSB_CALL wireless_cb(struct libusb_transfer *xfer) {
 }
 
 static int run_wireless(libusb_context *ctx, libusb_device_handle *handle,
-                        const wireless_receiver_t *match, bool gamepad_mode, bool verbose) {
+                        const wireless_receiver_t *match, bool gamepad_mode,
+                        const config_t *cfg) {
     printf("Detecte : %s (VID 0x%04X PID 0x%04X)\n",
            match->name, match->vid, match->pid);
 
@@ -565,7 +626,7 @@ static int run_wireless(libusb_context *ctx, libusb_device_handle *handle,
         slots[i].handle = handle;
         slots[i].present = false;
         slots[i].vhid = vhids[i];
-        slots[i].verbose = verbose;
+        slots[i].cfg = cfg;
         slots[i].keyboard_mode = !gamepad_mode;
         slots[i].in_ep = in_eps[i];
         slots[i].out_ep = out_eps[i];
@@ -600,9 +661,20 @@ static int run_wireless(libusb_context *ctx, libusb_device_handle *handle,
     }
     printf("Ctrl-C pour quitter.\n\n");
 
+    double poll_interval = (cfg->poll_hz > 0) ? (1000.0 / cfg->poll_hz) : 0.0;
     while (keep_running) {
-        struct timeval tv = {0, 100000};
+        long usec = (poll_interval > 0) ? (long)(poll_interval * 1000) : 100000;
+        struct timeval tv = {0, usec};
         libusb_handle_events_timeout(ctx, &tv);
+
+        if (poll_interval > 0 && !gamepad_mode) {
+            // Keyboard mode only injects from slot 0; poll-emit its state.
+            double now = now_ms();
+            if (now - slots[0].state.last_poll_ms >= poll_interval) {
+                emit_polled(&slots[0].state);
+                slots[0].state.last_poll_ms = now;
+            }
+        }
     }
 
 cleanup:
@@ -624,12 +696,29 @@ cleanup:
 
 #ifndef XENON360_NO_MAIN
 int main(int argc, char **argv) {
-    bool verbose = false;
     bool gamepad_mode = false;
+    config_t cfg = { .verbose = false, .no_tilt = false, .poll_hz = 0 };
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) verbose = true;
+        if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) cfg.verbose = true;
         else if (strcmp(argv[i], "-g") == 0 || strcmp(argv[i], "--gamepad") == 0) gamepad_mode = true;
+        else if (strcmp(argv[i], "--no-tilt") == 0) cfg.no_tilt = true;
+        else if (strncmp(argv[i], "--poll", 6) == 0) {
+            // --poll  -> default 100 Hz ; --poll=60 or --poll 60 -> that rate
+            const char *eq = strchr(argv[i], '=');
+            if (eq) cfg.poll_hz = atoi(eq + 1);
+            else if (i + 1 < argc && argv[i + 1][0] != '-') cfg.poll_hz = atoi(argv[++i]);
+            else cfg.poll_hz = 100;
+            if (cfg.poll_hz < 1) cfg.poll_hz = 0;
+            if (cfg.poll_hz > 1000) cfg.poll_hz = 1000;
+        }
     }
+    bool verbose = cfg.verbose;
+
+    if (cfg.poll_hz > 0)
+        printf("Mode POLLING : %d Hz (echantillonne l'etat comme Windows, "
+               "%.1f ms/tick).\n", cfg.poll_hz, 1000.0 / cfg.poll_hz);
+    if (cfg.no_tilt)
+        printf("Axe tilt / star power desactive (--no-tilt).\n");
 
     signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
@@ -654,7 +743,7 @@ int main(int argc, char **argv) {
     }
 
     if (devtype == DEV_WIRELESS_RECEIVER) {
-        int rc = run_wireless(ctx, handle, wireless_match, gamepad_mode, verbose);
+        int rc = run_wireless(ctx, handle, wireless_match, gamepad_mode, &cfg);
         libusb_close(handle);
         libusb_exit(ctx);
         return rc;
@@ -723,19 +812,31 @@ int main(int argc, char **argv) {
     state_t state = {0};
     uint8_t buf[64];
 
+    // In poll mode, wake up at least once per poll interval so emit_polled()
+    // fires on time even when no new packet arrives.
+    double poll_interval = (cfg.poll_hz > 0) ? (1000.0 / cfg.poll_hz) : 0.0;
+    int read_timeout = (poll_interval > 1.0) ? (int)poll_interval : (cfg.poll_hz > 0 ? 1 : 100);
+
     while (keep_running) {
         int transferred = 0;
-        r = libusb_interrupt_transfer(handle, 0x81, buf, sizeof(buf), &transferred, 100);
-        if (r == LIBUSB_ERROR_TIMEOUT) continue;
+        r = libusb_interrupt_transfer(handle, 0x81, buf, sizeof(buf), &transferred, read_timeout);
         if (r == LIBUSB_ERROR_NO_DEVICE) {
             fprintf(stderr, "\nDevice debranche.\n");
             break;
         }
-        if (r < 0) {
+        if (r < 0 && r != LIBUSB_ERROR_TIMEOUT) {
             fprintf(stderr, "\ntransfer error: %s\n", libusb_error_name(r));
             break;
         }
-        process_packet(buf, transferred, &state, verbose, vhid);
+        if (r == 0) process_packet(buf, transferred, &state, &cfg, vhid);
+
+        if (poll_interval > 0 && !gamepad_mode) {
+            double now = now_ms();
+            if (now - state.last_poll_ms >= poll_interval) {
+                emit_polled(&state);
+                state.last_poll_ms = now;
+            }
+        }
     }
 
     if (!gamepad_mode) release_all_keys(&state);
