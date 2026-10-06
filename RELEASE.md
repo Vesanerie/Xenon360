@@ -34,8 +34,8 @@ later.
 
 ```bash
 xcrun notarytool store-credentials xenon360-notary \
-      --apple-id YOUR_EMAIL \
-      --team-id  Q4W8LZ8636 \
+      --apple-id "$APPLE_ID" \
+      --team-id  "$TEAM_ID" \
       --password APP_SPECIFIC_PASSWORD_FROM_STEP_3
 ```
 
