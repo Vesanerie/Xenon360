@@ -5,9 +5,9 @@
 [![License](https://img.shields.io/badge/license-GPL--2.0--or--later-blue)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%2011%2B%20Apple%20Silicon-lightgrey)](#)
 
-**Play Clone Hero, YARG, Rock Band on your Mac with your old Xbox 360 USB guitar.**
+**Play Clone Hero, YARG, Rock Band on your Mac with your old Xbox 360 USB guitar or wireless controller.**
 
-Plug in your Guitar Hero X-plorer (or any Xbox 360 wired controller), install Xenon360, open Clone Hero. That's it. Your frets, your strums, your tilt, your whammy: all reach the game through the keyboard.
+Plug in your Guitar Hero X-plorer (or any Xbox 360 wired controller), or connect an **official Microsoft Xbox 360 Wireless Receiver** for up to 4 wireless controllers. Install Xenon360, open Clone Hero. That's it. Your frets, your strums, your tilt, your whammy: all reach the game through the keyboard (or as a virtual gamepad with analog triggers).
 
 Apple Silicon (M1/M2/M3/M4) only. macOS 11 Big Sur or later.
 
@@ -60,15 +60,21 @@ The watcher daemon means you never have to think about Xenon360. Open the game, 
 
 ### Default keyboard mapping (Clone Hero compatible)
 
-| Guitar              | Keyboard      |
+| Guitar / Controller | Keyboard      |
 |---------------------|---------------|
-| Green fret          | A             |
-| Red fret            | S             |
-| Yellow fret         | J             |
-| Blue fret           | K             |
-| Orange fret         | L             |
-| Strum up            | Arrow up      |
-| Strum down          | Arrow down    |
+| Green fret (A)      | A             |
+| Red fret (B)        | S             |
+| Yellow fret (Y)     | J             |
+| Blue fret (X)       | K             |
+| Orange fret (LB)    | L             |
+| **Right Bumper (RB)** | **R**       |
+| **Guide (Xbox logo)** | **G**       |
+| **Left Stick Click (L3)** | **C**   |
+| **Right Stick Click (R3)** | **V**  |
+| Strum up / D-pad Up | Arrow up      |
+| Strum down / D-pad Down | Arrow down |
+| **D-pad Left**      | **Arrow left** |
+| **D-pad Right**     | **Arrow right** |
 | Tilt (star power)   | Space         |
 | Start               | Enter         |
 | Back                | Escape        |
@@ -86,6 +92,16 @@ Anything in the [Linux kernel `xpad` driver table](https://github.com/torvalds/l
 
 If your device shows up as "vendor-specific USB" but isn't in the list, run from a terminal: `Xenon360.app/Contents/Resources/xenon360 -v` and open a GitHub issue with the VID/PID it prints. Easy to add.
 
+### Wireless receiver specifics
+
+Supported receiver VIDs/PIDs:
+- `0x045E:0x0291` — Microsoft Xbox 360 Wireless Receiver
+- `0x045E:0x0719` — Microsoft Xbox 360 Wireless Receiver for Windows
+- `0x045E:0x02A1` — Microsoft Xbox 360 Wireless Receiver (variant)
+- `0x1BAD:0x0719` — Mad Catz Xbox 360 Wireless Receiver clone
+
+If your receiver isn't detected, run with `-v` and check the output for the VID/PID.
+
 ## Uninstall
 
 ```bash
@@ -98,8 +114,8 @@ This removes the LaunchAgent, the staging files in `~/Library/Application Suppor
 
 **Nothing happens when I strum.**
 Check the menu bar (top right of your screen). The Xenon360 icon should be there. Click it:
-- If it says "Aucune guitare détectée": unplug/replug the USB.
-- If you see a ⚠ warning about Accessibility: click "Ouvrir Réglages Accessibilité" and toggle Xenon360 ON.
+- If it says "No guitar detected": unplug/replug the USB.
+- If you see a ⚠ warning about Accessibility: click "Open Accessibility Settings" and toggle Xenon360 ON.
 - If Clone Hero is the focused window but keys still don't register, fully quit Clone Hero and reopen it.
 
 **Watcher isn't starting Xenon360 automatically.**
@@ -111,17 +127,61 @@ That can happen if macOS thinks it already asked. Open *Settings > Privacy & Sec
 **Game not in the auto-launch list (anything other than Clone Hero / YARG).**
 Open `/Applications/Xenon360.app` manually before launching it. Quit it from the menu bar when done. Or open an issue with the game's name and I'll add it.
 
+### Wireless receiver troubleshooting
+
+**Receiver detected but controller won't sync / LED keeps blinking:**
+- The receiver may need a keep-alive signal. Xenon360 sends this automatically every 2 seconds. If LED still blinks, try unplugging/replugging the receiver.
+- Make sure you're pressing the **sync button on the receiver** first, then the **Guide button on the controller**.
+
+**"claim_interface failed" error in verbose output:**
+- macOS's native driver may have claimed the interface. Try unplugging/replugging the receiver, or reboot.
+
+**Controller connects but no input in RetroArch / Steam Input:**
+- Use **gamepad mode** (`-g` flag) which exposes triggers as analog axes (Z/Rz).
+- Requires SIP/AMFI disabled (see Advanced section above).
+- In RetroArch: Settings → Input → Port 1 Controls → Device Index → select "Xenon360 Virtual Guitar Slot 1".
+
+**LT/RT triggers not working in gamepad mode:**
+- Triggers are mapped as axes Z (LT) and Rz (RT), not buttons. Map them in your emulator/game as "Axis 2-" / "Axis 5+" or similar.
+
 ## Advanced
 
-### Analog whammy and tilt (gamepad mode)
+### Analog whammy, tilt, and triggers (gamepad mode)
 
-The keyboard mode is fine for 99% of players. But if you want **continuous analog whammy** (instead of binary keypress), there's a virtual HID gamepad mode invoked with the `-g` flag on the CLI. It requires disabling SIP and AMFI on your Mac, which is heavy. Worth it for hardcore players only. Open an issue for the procedure.
+The keyboard mode is fine for 99% of players. But if you want **continuous analog whammy/tilt** (instead of binary keypress) or **analog triggers (LT/RT)**, there's a virtual HID gamepad mode invoked with the `-g` flag on the CLI.
 
-### Wireless receiver (⚠️ experimental, NOT tested on real hardware)
+```bash
+/Applications/Xenon360.app/Contents/Resources/xenon360 -g
+```
+
+**Gamepad mode features:**
+- 6 axes: LX, LY, LT (Z), RX, RY, RT (Rz)
+- Hat switch for D-pad
+- 12 buttons: A, B, X, Y, LB, RB, Back, Start, Guide, L3, R3, (star power)
+
+**Requirements:** Disabling SIP and AMFI on your Mac (see below). Worth it for hardcore players / RetroArch / Steam Input use only.
+
+**SIP/AMFI disable procedure:**
+1. Reboot into Recovery (Shut down, hold power button)
+2. Utilities → Terminal → `csrutil disable`
+3. Normal reboot
+4. `sudo nvram boot-args="amfi_get_out_of_my_way=1"`
+5. Reboot
+
+To re-enable: Recovery → `csrutil enable` → `sudo nvram -d boot-args` → Reboot.
+
+### Wireless receiver (✅ tested on Apple Silicon)
 
 If you plug in a Microsoft Xbox 360 Wireless Receiver (VID `0x045E`, PID `0x0291`, `0x0719` or `0x02A1`), Xenon360 auto-detects it and listens to all 4 slots simultaneously. Up to 4 wireless controllers can be used.
 
-> **Heads-up**: the maintainer doesn't own a wireless receiver, so this code path is theoretical. It's modeled on the Linux kernel `xpad` driver, but real hardware may behave differently. If you try it, please open a GitHub issue with the result (success or failure) so we can promote it from "alpha" to "actually works".
+**Features:**
+- All 10 buttons (A, B, X, Y, LB, RB, Back, Start, Guide, L3, R3)
+- Full D-pad (Up, Down, Left, Right)
+- Analog triggers (LT, RT) — exposed as Z/Rz axes in gamepad mode
+- Analog sticks (LX, LY, RX, RY)
+- LED keep-alive: player quadrant stays solid (no more blinking)
+
+> **Note**: Tested on Mac M1 with official Microsoft Wireless Receiver for Windows (PID 0x0719). If you use a different variant, run `Xenon360.app/Contents/Resources/xenon360 -v` and open an issue with the VID/PID if anything behaves differently.
 
 ### Build from source
 
@@ -143,7 +203,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history of releases.
 
 - [x] **v0.1**: wired USB read + keyboard injection
 - [x] **v0.2**: virtual HID gamepad (analog whammy/tilt, requires SIP off)
-- [x] **v0.3**: Xbox 360 USB wireless receiver, 4-slot multiplex (alpha, untested on real hardware)
+- [x] **v0.3**: Xbox 360 USB wireless receiver, 4-slot multiplex (tested on Apple Silicon)
 - [x] **v0.3.1**: signed PKG installer, auto-launch watcher, end-to-end tested
 - [ ] **v0.4**: NSWorkspace event-driven autolaunch (replace 3s polling), drums-specific support
 - [ ] **v1.0**: DriverKit migration for distribution without any system modifications
