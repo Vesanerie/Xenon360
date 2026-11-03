@@ -181,6 +181,8 @@ The keyboard mode is fine for 99% of players. But if you want **continuous analo
 
 To re-enable: Recovery → `csrutil enable` → `sudo nvram -d boot-args` → Reboot.
 
+> **Nota:** Estes comandos (`csrutil disable` e `amfi_get_out_of_my_way=1`) diminuem a segurança do macOS. São obrigatórios apenas para que os gatilhos LT/RT funcionem como eixos analógicos no modo `-g`. Em modo teclado padrão (`xenon360`), não são necessários.
+
 ### Wireless receiver (✅ tested on Apple Silicon)
 
 If you plug in a Microsoft Xbox 360 Wireless Receiver (VID `0x045E`, PID `0x0291`, `0x0719` or `0x02A1`), Xenon360 auto-detects it and listens to all 4 slots simultaneously. Up to 4 wireless controllers can be used.
