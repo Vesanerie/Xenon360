@@ -146,6 +146,17 @@ Open `/Applications/Xenon360.app` manually before launching it. Quit it from the
 
 ## Advanced
 
+### ⚠️ Important: Keyboard mode vs Gamepad mode
+
+| Mode | Command | LT/RT (Triggers) | Whammy/Tilt | SIP/AMFI |
+|------|---------|------------------|-------------|----------|
+| **Keyboard (default)** | `xenon360` | ❌ Not supported | Binary (keys) | ✅ Not needed |
+| **Gamepad** | `xenon360 -g` | ✅ **Analog axes (Z/Rz)** | ✅ **Analog** | ❌ **Required off** |
+
+**For RetroArch, Steam Input, or any game needing analog triggers: you MUST use gamepad mode (`-g`) with SIP/AMFI disabled.**
+
+---
+
 ### Analog whammy, tilt, and triggers (gamepad mode)
 
 The keyboard mode is fine for 99% of players. But if you want **continuous analog whammy/tilt** (instead of binary keypress) or **analog triggers (LT/RT)**, there's a virtual HID gamepad mode invoked with the `-g` flag on the CLI.
