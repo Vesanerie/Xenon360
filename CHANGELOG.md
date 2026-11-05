@@ -3,6 +3,13 @@
 All notable changes to Xenon360 are documented here. Format inspired by
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v0.3.2] - 2026-11-05
+
+### Added
+- **New app icon**: a light ring in four quarters, top-left quarter lit,
+  a nod to the Xbox 360 ring of light. Simplified artwork at 16 and 32 px
+  so it stays readable in the Finder and menus.
+
 ## [v0.3.1] - 2026-05-26
 
 First publicly distributed release. Signed with Apple Developer ID and
