@@ -3,6 +3,14 @@
 All notable changes to Xenon360 are documented here. Format inspired by
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v0.3.3] - 2026-11-05
+
+### Changed
+- **New menu bar icon**: the same light ring as the app icon, drawn as a
+  template image (lit quarter solid, the other three translucent) so it
+  follows light and dark menu bars. Replaces the generic guitar symbol,
+  which stays as a fallback.
+
 ## [v0.3.2] - 2026-11-05
 
 ### Added
