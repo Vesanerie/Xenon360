@@ -16,13 +16,21 @@
 @implementation XenonAppDelegate
 
 - (NSImage *)guitarIcon {
-    NSImage *icon = nil;
-    if (@available(macOS 11.0, *)) {
-        icon = [NSImage imageWithSystemSymbolName:@"guitars.fill"
-                         accessibilityDescription:@"Xenon360"];
-        if (!icon) {
-            icon = [NSImage imageWithSystemSymbolName:@"gamecontroller.fill"
+    // Ring-of-light glyph from the bundle (MenuBarIcon.png + @2x), drawn as a
+    // template so macOS tints it for light/dark menu bars.
+    NSImage *icon = [NSImage imageNamed:@"MenuBarIcon"];
+    if (icon) {
+        icon.size = NSMakeSize(18, 18);
+        icon.accessibilityDescription = @"Xenon360";
+    }
+    if (!icon) {
+        if (@available(macOS 11.0, *)) {
+            icon = [NSImage imageWithSystemSymbolName:@"guitars.fill"
                              accessibilityDescription:@"Xenon360"];
+            if (!icon) {
+                icon = [NSImage imageWithSystemSymbolName:@"gamecontroller.fill"
+                                 accessibilityDescription:@"Xenon360"];
+            }
         }
     }
     if (icon) icon.template = YES;

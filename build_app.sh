@@ -39,6 +39,7 @@ cp app/Info.plist                                  "${CONTENTS}/Info.plist"
 cp app/${APP_NAME}                                 "${CONTENTS}/MacOS/${APP_NAME}"
 cp xenon360                                        "${CONTENTS}/Resources/xenon360"
 cp app/AppIcon.icns                                "${CONTENTS}/Resources/AppIcon.icns"
+cp app/MenuBarIcon.png app/MenuBarIcon@2x.png     "${CONTENTS}/Resources/"
 
 # Stage watcher payload inside the .app so the PKG postinstall (or a user with
 # a downloaded .app) can find it without needing the source repo.
