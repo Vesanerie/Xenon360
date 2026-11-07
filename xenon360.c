@@ -197,15 +197,24 @@ static const wireless_receiver_t *find_wireless_match(uint16_t vid, uint16_t pid
 #define KEY_L      0x25
 #define KEY_UP     0x7E
 #define KEY_DOWN   0x7D
+#define KEY_LEFT   0x7B
+#define KEY_RIGHT  0x7C
 #define KEY_RETURN 0x24
 #define KEY_ESCAPE 0x35
 #define KEY_SPACE  0x31
+#define KEY_R      0x0F
+#define KEY_G      0x0D
+#define KEY_C      0x08
+#define KEY_V      0x09
 
 typedef struct {
     bool green, red, yellow, blue, orange;
-    bool strum_up, strum_down;
+    bool strum_up, strum_down, strum_left, strum_right;
     bool start, back;
     bool star_power;
+    bool rb;          // Right bumper (RB)
+    bool guide;       // Guide button (Xbox logo)
+    bool l3, r3;      // Stick clicks
     uint8_t  b4_last;
     uint8_t  b5_last;
     int16_t  lx_last, ly_last, rx_last, ry_last;
@@ -258,43 +267,51 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
     bool dpad_right = (btn2 & 0x08) != 0;
     bool btn_start  = (btn2 & 0x10) != 0;
     bool btn_back   = (btn2 & 0x20) != 0;
+    bool btn_l3     = (btn2 & 0x40) != 0;  // Left stick click
+    bool btn_r3     = (btn2 & 0x80) != 0;  // Right stick click
 
     bool btn_lb = (btn3 & 0x01) != 0;
+    bool btn_rb = (btn3 & 0x02) != 0;      // RIGHT BUMPER (RB) - FIXED!
+    bool btn_guide = (btn3 & 0x04) != 0;   // Guide button (Xbox logo)
     bool btn_a  = (btn3 & 0x10) != 0;
     bool btn_b  = (btn3 & 0x20) != 0;
     bool btn_x  = (btn3 & 0x40) != 0;
     bool btn_y  = (btn3 & 0x80) != 0;
 
+    // Triggers (analog 0-255)
+    uint8_t lt = data[4];
+    uint8_t rt = data[5];
+
     int16_t lx = (int16_t)(data[6]  | (data[7]  << 8));
     int16_t ly = (int16_t)(data[8]  | (data[9]  << 8));
     int16_t rx = (int16_t)(data[10] | (data[11] << 8));
     int16_t ry = (int16_t)(data[12] | (data[13] << 8));
-    uint8_t b4 = data[4];
-    uint8_t b5 = data[5];
 
     bool tilt = ry > 22000;
 
     bool digital_change =
         (state->green != btn_a) || (state->red != btn_b) ||
         (state->yellow != btn_y) || (state->blue != btn_x) ||
-        (state->orange != btn_lb) ||
+        (state->orange != btn_lb) || (state->rb != btn_rb) ||
+        (state->guide != btn_guide) || (state->l3 != btn_l3) || (state->r3 != btn_r3) ||
         (state->strum_up != dpad_up) || (state->strum_down != dpad_down) ||
+        (state->strum_left != dpad_left) || (state->strum_right != dpad_right) ||
         (state->start != btn_start) || (state->back != btn_back) ||
         (state->star_power != tilt);
 
     int analog_threshold_byte = 20;
     int analog_threshold_i16  = 2000;
     bool analog_change =
-        (abs((int)b4 - (int)state->b4_last) > analog_threshold_byte) ||
-        (abs((int)b5 - (int)state->b5_last) > analog_threshold_byte) ||
+        (abs((int)lt - (int)state->b4_last) > analog_threshold_byte) ||
+        (abs((int)rt - (int)state->b5_last) > analog_threshold_byte) ||
         (abs((int)lx - (int)state->lx_last) > analog_threshold_i16) ||
         (abs((int)ly - (int)state->ly_last) > analog_threshold_i16) ||
         (abs((int)rx - (int)state->rx_last) > analog_threshold_i16) ||
         (abs((int)ry - (int)state->ry_last) > analog_threshold_i16);
 
     if (digital_change || analog_change) {
-        state->b4_last = b4;
-        state->b5_last = b5;
+        state->b4_last = lt;
+        state->b5_last = rt;
         state->lx_last = lx;
         state->ly_last = ly;
         state->rx_last = rx;
@@ -308,12 +325,19 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
         if (btn_y)     r.buttons |= VHID_BTN_YELLOW;
         if (btn_x)     r.buttons |= VHID_BTN_BLUE;
         if (btn_lb)    r.buttons |= VHID_BTN_ORANGE;
+        if (btn_rb)    r.buttons |= VHID_BTN_GUIDE;
         if (btn_start) r.buttons |= VHID_BTN_START;
         if (btn_back)  r.buttons |= VHID_BTN_BACK;
+        if (btn_l3)    r.buttons |= (1 << 8);
+        if (btn_r3)    r.buttons |= (1 << 9);
         r.lx = lx;
         r.ly = ly;
         r.rx = rx;
         r.ry = ry;
+        // Triggers: convert 0-255 to -32768..32767 (centered at 0 for HID)
+        // LT/RT are typically 0 at rest, 255 at full press
+        r.lt = (int16_t)((lt * 257) - 32768);  // 0->-32768, 255->32767
+        r.rt = (int16_t)((rt * 257) - 32768);
         if (dpad_up && dpad_left)        r.hat = 7;
         else if (dpad_up && dpad_right)  r.hat = 1;
         else if (dpad_down && dpad_left) r.hat = 5;
@@ -325,39 +349,49 @@ static void process_packet(const uint8_t *data, int len, state_t *state, bool ve
         else                             r.hat = 8;
         vhid_send(vhid, &r);
     } else {
-        update_key(&state->green,     btn_a,            KEY_A);
-        update_key(&state->red,       btn_b,            KEY_S);
-        update_key(&state->yellow,    btn_y,            KEY_J);
-        update_key(&state->blue,      btn_x,            KEY_K);
-        update_key(&state->orange,    btn_lb,           KEY_L);
-        update_key(&state->strum_up,  dpad_up,          KEY_UP);
-        update_key(&state->strum_down,dpad_down,        KEY_DOWN);
-        update_key(&state->start,     btn_start,        KEY_RETURN);
-        update_key(&state->back,      btn_back,         KEY_ESCAPE);
-        update_key(&state->star_power,tilt,             KEY_SPACE);
+        update_key(&state->green,       btn_a,        KEY_A);
+        update_key(&state->red,         btn_b,        KEY_S);
+        update_key(&state->yellow,      btn_y,        KEY_J);
+        update_key(&state->blue,        btn_x,        KEY_K);
+        update_key(&state->orange,      btn_lb,       KEY_L);
+        update_key(&state->rb,          btn_rb,       KEY_R);      // RB -> R key
+        update_key(&state->guide,       btn_guide,    KEY_G);      // Guide -> G key
+        update_key(&state->l3,          btn_l3,       KEY_C);      // L3 -> C key
+        update_key(&state->r3,          btn_r3,       KEY_V);      // R3 -> V key
+        update_key(&state->strum_up,    dpad_up,      KEY_UP);
+        update_key(&state->strum_down,  dpad_down,    KEY_DOWN);
+        update_key(&state->strum_left,  dpad_left,    KEY_LEFT);   // D-pad LEFT
+        update_key(&state->strum_right, dpad_right,   KEY_RIGHT);  // D-pad RIGHT
+        update_key(&state->start,       btn_start,    KEY_RETURN);
+        update_key(&state->back,        btn_back,     KEY_ESCAPE);
+        update_key(&state->star_power,  tilt,         KEY_SPACE);
     }
 
     if (verbose && (digital_change || analog_change)) {
-        printf("G%d R%d Y%d B%d O%d strum:%c%c start:%d back:%d | b4=%3u b5=%3u | LX=%6d LY=%6d RX=%6d RY=%6d\n",
-               btn_a, btn_b, btn_y, btn_x, btn_lb,
-               dpad_up ? 'U' : '-', dpad_down ? 'D' : '-',
+        printf("A%d B%d X%d Y%d LB%d RB%d G%d L3%d R3%d | Dpad:%c%c%c%c S:%d B:%d | LT=%3u RT=%3u | LX=%6d LY=%6d RX=%6d RY=%6d\n",
+               btn_a, btn_b, btn_x, btn_y, btn_lb, btn_rb, btn_guide, btn_l3, btn_r3,
+               dpad_up ? 'U' : '-', dpad_down ? 'D' : '-', dpad_left ? 'L' : '-', dpad_right ? 'R' : '-',
                btn_start, btn_back,
-               b4, b5, lx, ly, rx, ry);
+               lt, rt, lx, ly, rx, ry);
         fflush(stdout);
     }
 }
 
 static void release_all_keys(state_t *state) {
-    if (state->green)      { inject_key(KEY_A,      false); state->green = false; }
-    if (state->red)        { inject_key(KEY_S,      false); state->red = false; }
-    if (state->yellow)     { inject_key(KEY_J,      false); state->yellow = false; }
-    if (state->blue)       { inject_key(KEY_K,      false); state->blue = false; }
-    if (state->orange)     { inject_key(KEY_L,      false); state->orange = false; }
-    if (state->strum_up)   { inject_key(KEY_UP,     false); state->strum_up = false; }
-    if (state->strum_down) { inject_key(KEY_DOWN,   false); state->strum_down = false; }
-    if (state->start)      { inject_key(KEY_RETURN, false); state->start = false; }
-    if (state->back)       { inject_key(KEY_ESCAPE, false); state->back = false; }
-    if (state->star_power) { inject_key(KEY_SPACE,  false); state->star_power = false; }
+    if (state->green)         { inject_key(KEY_A,      false); state->green = false; }
+    if (state->red)           { inject_key(KEY_S,      false); state->red = false; }
+    if (state->yellow)        { inject_key(KEY_J,      false); state->yellow = false; }
+    if (state->blue)          { inject_key(KEY_K,      false); state->blue = false; }
+    if (state->orange)        { inject_key(KEY_L,      false); state->orange = false; }
+    if (state->strum_up)      { inject_key(KEY_UP,     false); state->strum_up = false; }
+    if (state->strum_down)    { inject_key(KEY_DOWN,   false); state->strum_down = false; }
+    if (state->strum_left)    { inject_key(KEY_LEFT,   false); state->strum_left = false; }
+    if (state->strum_right)   { inject_key(KEY_RIGHT,  false); state->strum_right = false; }
+    if (state->start)         { inject_key(KEY_RETURN, false); state->start = false; }
+    if (state->back)          { inject_key(KEY_ESCAPE, false); state->back = false; }
+    if (state->star_power)    { inject_key(KEY_SPACE,  false); state->star_power = false; }
+    if (state->rb)            { inject_key(KEY_R,      false); state->rb = false; }  // RB -> R key
+    if (state->guide)         { inject_key(KEY_G,      false); state->guide = false; } // Guide -> G key
 }
 
 typedef enum {
@@ -465,10 +499,11 @@ static void wireless_handle_packet(wireless_slot_t *s, const uint8_t *data, int 
         if (now_present != s->present) {
             s->present = now_present;
             if (now_present) {
-                printf("Slot %d : manette connectee\n", s->slot + 1);
-                wireless_send_led(s, 0x02 + s->slot);
+                printf("Slot %d : controller connected\n", s->slot + 1);
+                // 0x06=P1 solid, 0x07=P2 solid, 0x08=P3 solid, 0x09=P4 solid
+                wireless_send_led(s, 0x06 + s->slot);
             } else {
-                printf("Slot %d : manette deconnectee\n", s->slot + 1);
+                printf("Slot %d : controller disconnected\n", s->slot + 1);
                 if (s->keyboard_mode) release_all_keys(&s->state);
             }
             fflush(stdout);
@@ -479,7 +514,7 @@ static void wireless_handle_packet(wireless_slot_t *s, const uint8_t *data, int 
     if (data[1] == 0x01 && len >= 18) {
         if (s->keyboard_mode && s->slot != 0) {
             if (s->verbose) {
-                printf("Slot %d input (ignore : clavier sur slot 1 uniquement)\n", s->slot + 1);
+                printf("Slot %d input (ignore: keyboard on slot 1 only)\n", s->slot + 1);
                 fflush(stdout);
             }
             return;
@@ -494,7 +529,7 @@ static void LIBUSB_CALL wireless_cb(struct libusb_transfer *xfer) {
     if (xfer->status == LIBUSB_TRANSFER_COMPLETED) {
         wireless_handle_packet(s, xfer->buffer, xfer->actual_length);
     } else if (xfer->status == LIBUSB_TRANSFER_NO_DEVICE) {
-        fprintf(stderr, "\nReceiver debranche.\n");
+        fprintf(stderr, "\nReceiver disconnected.\n");
         keep_running = 0;
         return;
     } else if (xfer->status != LIBUSB_TRANSFER_TIMED_OUT &&
@@ -509,7 +544,7 @@ static void LIBUSB_CALL wireless_cb(struct libusb_transfer *xfer) {
 
     int r = libusb_submit_transfer(xfer);
     if (r < 0 && r != LIBUSB_ERROR_NO_DEVICE) {
-        fprintf(stderr, "submit_transfer slot %d echec: %s\n",
+        fprintf(stderr, "submit_transfer slot %d failed: %s\n",
                 s->slot + 1, libusb_error_name(r));
         keep_running = 0;
     }
@@ -528,7 +563,7 @@ static int run_wireless(libusb_context *ctx, libusb_device_handle *handle,
     for (int i = 0; i < 4; i++) {
         int r = libusb_claim_interface(handle, interfaces[i]);
         if (r < 0) {
-            fprintf(stderr, "claim_interface %d echec : %s\n",
+            fprintf(stderr, "claim_interface %d failed: %s\n",
                     interfaces[i], libusb_error_name(r));
             fprintf(stderr, "Le receiver est peut-etre deja claim par le driver natif Apple.\n");
             for (int j = 0; j < i; j++) {
@@ -549,10 +584,10 @@ static int run_wireless(libusb_context *ctx, libusb_device_handle *handle,
         }
     } else {
         if (check_accessibility_permission()) {
-            printf("OK : permission Accessibilite accordee.\n");
+            printf("OK: Accessibility permission granted.\n");
         } else {
-            printf("ATTENTION : permission Accessibilite NON accordee.\n");
-            printf("  Va dans Reglages > Confidentialite > Accessibilite, active Terminal, relance.\n");
+            printf("WARNING: Accessibility permission NOT granted.\n");
+            printf("  Go to Settings > Privacy & Security > Accessibility, enable Terminal, relaunch.\n");
         }
     }
 
@@ -572,7 +607,7 @@ static int run_wireless(libusb_context *ctx, libusb_device_handle *handle,
 
         xfers[i] = libusb_alloc_transfer(0);
         if (!xfers[i]) {
-            fprintf(stderr, "alloc_transfer echec\n");
+            fprintf(stderr, "alloc_transfer failed\n");
             rc = 1;
             goto cleanup;
         }
@@ -583,26 +618,40 @@ static int run_wireless(libusb_context *ctx, libusb_device_handle *handle,
 
         int r = libusb_submit_transfer(xfers[i]);
         if (r < 0) {
-            fprintf(stderr, "submit_transfer slot %d echec : %s\n",
+            fprintf(stderr, "submit_transfer slot %d failed: %s\n",
                     i + 1, libusb_error_name(r));
             rc = 1;
             goto cleanup;
         }
     }
 
-    printf("\nMode WIRELESS RECEIVER : 4 slots a l'ecoute.\n");
-    printf("Allume tes manettes (bouton Guide) et attribue chaque slot.\n");
+    printf("\nMode WIRELESS RECEIVER : 4 slots listening.\n");
+    printf("Turn on your controllers (Guide button) and assign each slot.\n");
     if (gamepad_mode) {
-        printf("Gamepad virtuel par slot : 'Xenon360 Virtual Guitar Slot N'\n");
+        printf("Virtual gamepad per slot: 'Xenon360 Virtual Guitar Slot N'\n");
     } else {
-        printf("Mode CLAVIER : seul le slot 1 injecte au clavier (sinon collision).\n");
-        printf("Pour multi-joueur, utilise --gamepad (necessite SIP/AMFI off).\n");
+        printf("KEYBOARD MODE: only slot 1 injects keys (avoids multiplayer collision).\n");
+        printf("For multiplayer, use --gamepad (requires SIP/AMFI off).\n");
     }
-    printf("Ctrl-C pour quitter.\n\n");
+    printf("Ctrl-C to quit.\n\n");
+
+    int led_keepalive_counter = 0;
 
     while (keep_running) {
         struct timeval tv = {0, 100000};
         libusb_handle_events_timeout(ctx, &tv);
+
+        // LED keep-alive: re-send solid player LED every ~2 seconds (20 * 100ms)
+        led_keepalive_counter++;
+        if (led_keepalive_counter >= 20) {
+            led_keepalive_counter = 0;
+            for (int i = 0; i < 4; i++) {
+                if (slots[i].present) {
+                    // 0x06=P1 solid, 0x07=P2 solid, 0x08=P3 solid, 0x09=P4 solid
+                    wireless_send_led(&slots[i], 0x06 + i);
+                }
+            }
+        }
     }
 
 cleanup:
@@ -666,7 +715,7 @@ int main(int argc, char **argv) {
     if (r < 0) {
         fprintf(stderr, "claim_interface failed: %s\n", libusb_error_name(r));
         fprintf(stderr, "Sur macOS Tahoe le driver natif Apple peut avoir pris la main.\n");
-        fprintf(stderr, "Essaie de debrancher/rebrancher, ou redemarre.\n");
+        fprintf(stderr, "Try unplugging/replugging, or reboot.\n");
         libusb_close(handle);
         libusb_exit(ctx);
         return 1;
@@ -681,12 +730,12 @@ int main(int argc, char **argv) {
         if (!vhid) {
             fprintf(stderr, "\nImpossible de creer le gamepad virtuel.\n");
             fprintf(stderr, "Sur Apple Silicon il faut desactiver SIP + AMFI :\n");
-            fprintf(stderr, "  1. Reboot en Recovery (Eteindre puis tenir bouton power)\n");
-            fprintf(stderr, "  2. Utilitaires > Terminal > csrutil disable\n");
-            fprintf(stderr, "  3. Reboot normal\n");
+            fprintf(stderr, "  1. Reboot into Recovery (Shut down, hold power button)\n");
+            fprintf(stderr, "  2. Utilities > Terminal > csrutil disable\n");
+            fprintf(stderr, "  3. Normal reboot\n");
             fprintf(stderr, "  4. sudo nvram boot-args=\"amfi_get_out_of_my_way=1\"\n");
             fprintf(stderr, "  5. Reboot\n");
-            fprintf(stderr, "Sinon utilise le mode clavier par defaut (sans -g).\n");
+            fprintf(stderr, "Or use keyboard mode (default, without -g).\n");
             libusb_release_interface(handle, 0);
             libusb_close(handle);
             libusb_exit(ctx);
@@ -694,31 +743,33 @@ int main(int argc, char **argv) {
         }
         printf("Gamepad virtuel cree : \"Xenon360 Virtual Guitar\"\n");
         printf("Mapping HID :\n");
-        printf("  Boutons 1-5 = frettes  |  Bouton 6=Start, 7=Back\n");
-        printf("  Axe Z = whammy (analogique)  |  Axe Rz = tilt (analogique)\n");
-        printf("  Hat switch = strum (haut/bas)\n");
-        printf("\nDans Clone Hero : Settings > Controls > nouveau device, remap boutons.\n");
+        printf("  Buttons 1-5 = frets  |  Button 6=Start, 7=Back\n");
+        printf("  Axis Z = whammy (analog)  |  Axis Rz = tilt (analog)\n");
+        printf("  Hat switch = strum (up/down)\n");
+        printf("\nIn Clone Hero: Settings > Controls > new device, remap buttons.\n");
     } else {
-        printf("Mode CLAVIER (Clone Hero default keymap):\n");
-        printf("  Vert=A  Rouge=S  Jaune=J  Bleu=K  Orange=L\n");
-        printf("  Strum Up/Down = fleches  |  Tilt (star power) = Espace\n");
-        printf("  Start=Entree  Back=Echap\n");
-        printf("  (Whammy analogique non supporte en mode clavier, lance avec -g)\n\n");
+        printf("KEYBOARD MODE (Clone Hero default keymap):\n");
+        printf("  Green=A  Red=S  Yellow=J  Blue=K  Orange=L\n");
+        printf("  RB=R  Guide=G  L3=C  R3=V\n");
+        printf("  D-pad: Up=Up_Arrow  Down=Down_Arrow  Left=Left_Arrow  Right=Right_Arrow\n");
+        printf("  Strum Up/Down = arrows  |  Tilt (star power) = Space\n");
+        printf("  Start=Enter  Back=Esc\n");
+        printf("  (Whammy analog not supported in keyboard mode, use -g)\n\n");
 
         bool trusted = check_accessibility_permission();
         if (trusted) {
-            printf("OK : permission Accessibilite accordee, injection clavier active.\n");
+            printf("OK: Accessibility permission granted, keyboard injection active.\n");
         } else {
-            printf("ATTENTION : permission Accessibilite NON accordee.\n");
-            printf("  Les touches ne seront PAS envoyees aux jeux.\n");
-            printf("  macOS a affiche une popup. Va dans :\n");
-            printf("  Reglages > Confidentialite et securite > Accessibilite\n");
-            printf("  Active Terminal (ou l'app depuis laquelle tu lances ce binaire).\n");
-            printf("  Puis relance ce binaire.\n");
+            printf("WARNING: Accessibility permission NOT granted.\n");
+            printf("  Keys will NOT be sent to games.\n");
+            printf("  macOS showed a popup. Go to:\n");
+            printf("  Settings > Privacy & Security > Accessibility\n");
+            printf("  Enable Terminal (or the app you launch this from).\n");
+            printf("  Then relaunch.\n");
         }
     }
     printf("\n");
-    if (verbose) printf("Mode verbose actif (affiche chaque changement d'etat).\n\n");
+    if (verbose) printf("Verbose mode active (shows every state change).\n\n");
 
     state_t state = {0};
     uint8_t buf[64];
@@ -728,7 +779,7 @@ int main(int argc, char **argv) {
         r = libusb_interrupt_transfer(handle, 0x81, buf, sizeof(buf), &transferred, 100);
         if (r == LIBUSB_ERROR_TIMEOUT) continue;
         if (r == LIBUSB_ERROR_NO_DEVICE) {
-            fprintf(stderr, "\nDevice debranche.\n");
+            fprintf(stderr, "\nDevice disconnected.\n");
             break;
         }
         if (r < 0) {

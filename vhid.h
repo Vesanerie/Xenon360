@@ -9,6 +9,7 @@ typedef struct vhid vhid_t;
 typedef struct __attribute__((packed)) {
     uint16_t buttons;
     int16_t  lx, ly, rx, ry;
+    int16_t  lt, rt;      // Triggers as axes (Z and Rz)
     uint8_t  hat;
 } vhid_report_t;
 
